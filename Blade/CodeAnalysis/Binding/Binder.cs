@@ -9,7 +9,6 @@ namespace Blade.CodeAnalysis.Binding
     {
         private readonly DiagnosticBag _diagnostics = new();
         private readonly FunctionSymbol _function;
-
         private BoundScope _scope;
 
         public Binder(BoundScope parent, FunctionSymbol function)
@@ -134,6 +133,7 @@ namespace Blade.CodeAnalysis.Binding
             }
             return parent;
         }
+
         private static BoundScope CreateRootScope()
         {
             BoundScope result = new(null);
@@ -141,7 +141,9 @@ namespace Blade.CodeAnalysis.Binding
                 result.TryDeclareFunction(f);
             return result;
         }
+
         public DiagnosticBag Diagnostics => _diagnostics;
+
         private BoundStatement BindStatement(StatementSyntax syntax)
         {
             switch (syntax.Kind)
@@ -164,6 +166,7 @@ namespace Blade.CodeAnalysis.Binding
                     throw new Exception($"Unexpected syntax {syntax.Kind}");
             }
         }
+
         private BoundStatement BindBlockStatement(BlockStatementSyntax syntax)
         {
             ImmutableArray<BoundStatement>.Builder statements = ImmutableArray.CreateBuilder<BoundStatement>();
@@ -176,6 +179,7 @@ namespace Blade.CodeAnalysis.Binding
             _scope = _scope.Parent;
             return new BoundBlockStatement(statements.ToImmutable());
         }
+
         private BoundStatement BindVariableDeclaration(VariableDeclarationSyntax syntax)
         {
             bool isReadOnly = syntax.Keyword.Kind == SyntaxKind.LetKeyword;
@@ -207,18 +211,21 @@ namespace Blade.CodeAnalysis.Binding
             BoundStatement elseStatement = syntax.ElseClause == null ? null : BindStatement(syntax.ElseClause.ElseStatement);
             return new BoundIfStatement(condition, thenStatement, elseStatement);
         }
+
         private BoundStatement BindWhileStatement(WhileStatementSyntax syntax)
         {
             BoundExpression condition = BindExpression(syntax.Condition, TypeSymbol.Bool);
             BoundStatement body = BindStatement(syntax.Body);
             return new BoundWhileStatement(condition, body);
         }
+
         private BoundStatement BindDoWhileStatement(DoWhileStatementSyntax syntax)
         {
             BoundStatement body = BindStatement(syntax.Body);
             BoundExpression condition = BindExpression(syntax.Condition, TypeSymbol.Bool);
             return new BoundDoWhileStatement(body, condition);
         }
+
         private BoundStatement BindForStatement(ForStatementSyntax syntax)
         {
             BoundExpression lowerBound = BindExpression(syntax.LowerBound, TypeSymbol.Int);
@@ -229,6 +236,7 @@ namespace Blade.CodeAnalysis.Binding
             _scope = _scope.Parent;
             return new BoundForStatement(variable, lowerBound, upperBound, body);
         }
+
         private BoundStatement BindExpressionStatement(ExpressionStatementSyntax syntax)
         {
             BoundExpression expression = BindExpression(syntax.Expression, canBeVoid: true);
@@ -250,6 +258,7 @@ namespace Blade.CodeAnalysis.Binding
             }
             return result;
         }
+
         private BoundExpression BindExpressionInternal(ExpressionSyntax syntax)
         {
             switch (syntax.Kind)
@@ -272,15 +281,18 @@ namespace Blade.CodeAnalysis.Binding
                     throw new Exception($"Unexpected syntax {syntax.Kind}");
             }
         }
+
         private BoundExpression BindParenthesizedExpression(ParenthesizedExpressionSyntax syntax)
         {
             return BindExpression(syntax.Expression);
         }
+
         private static BoundExpression BindLiteralExpression(LiteralExpressionSyntax syntax)
         {
             object value = syntax.Value ?? 0;
             return new BoundLiteralExpression(value);
         }
+
         private BoundExpression BindNameExpression(NameExpressionSyntax syntax)
         {
             string name = syntax.IdentifierToken.Text;
@@ -297,6 +309,7 @@ namespace Blade.CodeAnalysis.Binding
             }
             return new BoundVariableExpression(variable);
         }
+
         private BoundExpression BindAssignmentExpression(AssignmentExpressionSyntax syntax)
         {
             string name = syntax.IdentifierToken.Text;
@@ -327,6 +340,7 @@ namespace Blade.CodeAnalysis.Binding
             }
             return new BoundUnaryExpression(boundOperator, boundOperand);
         }
+
         private BoundExpression BindBinaryExpression(BinaryExpressionSyntax syntax)
         {
             BoundExpression boundLeft = BindExpression(syntax.Left);
@@ -341,6 +355,7 @@ namespace Blade.CodeAnalysis.Binding
             }
             return new BoundBinaryExpression(boundLeft, boundOperator, boundRight);
         }
+
         private BoundExpression BindCallExpression(CallExpressionSyntax syntax)
         {
             if (syntax.Arguments.Count == 1 && LookupType(syntax.Identifier.Text) is TypeSymbol type)

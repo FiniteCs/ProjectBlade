@@ -159,6 +159,7 @@ namespace Blade.CodeAnalysis.Syntax
                     return ParseExpressionStatement();
             }
         }
+
         private BlockStatementSyntax ParseBlockStatement()
         {
             ImmutableArray<StatementSyntax>.Builder statements = ImmutableArray.CreateBuilder<StatementSyntax>();
@@ -182,6 +183,7 @@ namespace Blade.CodeAnalysis.Syntax
             SyntaxToken closeBraceToken = MatchToken(SyntaxKind.CloseBraceToken);
             return new BlockStatementSyntax(openBraceToken, statements.ToImmutable(), closeBraceToken);
         }
+
         private StatementSyntax ParseVariableDeclaration()
         {
             SyntaxKind expected = Current.Kind == SyntaxKind.LetKeyword ? SyntaxKind.LetKeyword : SyntaxKind.VarKeyword;
@@ -216,6 +218,7 @@ namespace Blade.CodeAnalysis.Syntax
             ElseClauseSyntax elseClause = ParseElseClause();
             return new IfStatementSyntax(keyword, condition, statement, elseClause);
         }
+
         private ElseClauseSyntax ParseElseClause()
         {
             if (Current.Kind != SyntaxKind.ElseKeyword)
@@ -224,6 +227,7 @@ namespace Blade.CodeAnalysis.Syntax
             StatementSyntax statement = ParseStatement();
             return new ElseClauseSyntax(keyword, statement);
         }
+
         private StatementSyntax ParseWhileStatement()
         {
             SyntaxToken keyword = MatchToken(SyntaxKind.WhileKeyword);
@@ -231,6 +235,7 @@ namespace Blade.CodeAnalysis.Syntax
             StatementSyntax body = ParseStatement();
             return new WhileStatementSyntax(keyword, condition, body);
         }
+
         private StatementSyntax ParseDoWhileStatement()
         {
             SyntaxToken doKeyword = MatchToken(SyntaxKind.DoKeyword);
@@ -239,6 +244,7 @@ namespace Blade.CodeAnalysis.Syntax
             ExpressionSyntax condition = ParseExpression();
             return new DoWhileStatementSyntax(doKeyword, body, whileKeyword, condition);
         }
+
         private StatementSyntax ParseForStatement()
         {
             SyntaxToken keyword = MatchToken(SyntaxKind.ForKeyword);
@@ -250,15 +256,18 @@ namespace Blade.CodeAnalysis.Syntax
             StatementSyntax body = ParseStatement();
             return new ForStatementSyntax(keyword, identifier, equalsToken, lowerBound, toKeyword, upperBound, body);
         }
+
         private ExpressionStatementSyntax ParseExpressionStatement()
         {
             ExpressionSyntax expression = ParseExpression();
             return new ExpressionStatementSyntax(expression);
         }
+
         private ExpressionSyntax ParseExpression()
         {
             return ParseAssignmentExpression();
         }
+
         private ExpressionSyntax ParseAssignmentExpression()
         {
             if (Peek(0).Kind == SyntaxKind.IdentifierToken &&
@@ -271,6 +280,7 @@ namespace Blade.CodeAnalysis.Syntax
             }
             return ParseBinaryExpression();
         }
+
         private ExpressionSyntax ParseBinaryExpression(int parentPrecedence = 0)
         {
             ExpressionSyntax left;
@@ -296,6 +306,7 @@ namespace Blade.CodeAnalysis.Syntax
             }
             return left;
         }
+
         private ExpressionSyntax ParsePrimaryExpression()
         {
             switch (Current.Kind)
@@ -314,6 +325,7 @@ namespace Blade.CodeAnalysis.Syntax
                     return ParseNameOrCallExpression();
             }
         }
+
         private ExpressionSyntax ParseParenthesizedExpression()
         {
             SyntaxToken left = MatchToken(SyntaxKind.OpenParenthesisToken);
@@ -321,28 +333,33 @@ namespace Blade.CodeAnalysis.Syntax
             SyntaxToken right = MatchToken(SyntaxKind.CloseParenthesisToken);
             return new ParenthesizedExpressionSyntax(left, expression, right);
         }
+
         private ExpressionSyntax ParseBooleanLiteral()
         {
             bool isTrue = Current.Kind == SyntaxKind.TrueKeyword;
             SyntaxToken keywordToken = isTrue ? MatchToken(SyntaxKind.TrueKeyword) : MatchToken(SyntaxKind.FalseKeyword);
             return new LiteralExpressionSyntax(keywordToken, isTrue);
         }
+
         private ExpressionSyntax ParseNumberLiteral()
         {
             SyntaxToken numberToken = MatchToken(SyntaxKind.NumberToken);
             return new LiteralExpressionSyntax(numberToken);
         }
+
         private ExpressionSyntax ParseStringLiteral()
         {
             SyntaxToken stringToken = MatchToken(SyntaxKind.StringToken);
             return new LiteralExpressionSyntax(stringToken);
         }
+
         private ExpressionSyntax ParseNameOrCallExpression()
         {
             if (Peek(0).Kind == SyntaxKind.IdentifierToken && Peek(1).Kind == SyntaxKind.OpenParenthesisToken)
                 return ParseCallExpression();
             return ParseNameExpression();
         }
+
         private ExpressionSyntax ParseCallExpression()
         {
             SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
@@ -351,6 +368,7 @@ namespace Blade.CodeAnalysis.Syntax
             SyntaxToken closeParenthesisToken = MatchToken(SyntaxKind.CloseParenthesisToken);
             return new CallExpressionSyntax(identifier, openParenthesisToken, arguments, closeParenthesisToken);
         }
+
         private SeparatedSyntaxList<ExpressionSyntax> ParseArguments()
         {
             ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
@@ -367,6 +385,7 @@ namespace Blade.CodeAnalysis.Syntax
             }
             return new SeparatedSyntaxList<ExpressionSyntax>(nodesAndSeparators.ToImmutable());
         }
+
         private ExpressionSyntax ParseNameExpression()
         {
             SyntaxToken identifierToken = MatchToken(SyntaxKind.IdentifierToken);
