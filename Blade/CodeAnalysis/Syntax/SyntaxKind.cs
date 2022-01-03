@@ -28,6 +28,8 @@
         GreaterOrEqualsToken,
         OpenParenthesisToken,
         CloseParenthesisToken,
+        OpenBracketToken,
+        CloseBracketToken,
         OpenBraceToken,
         CloseBraceToken,
         ColonToken,
@@ -54,6 +56,7 @@
         Parameter,
         TypeClause,
         ElseClause,
+        ArrayElement,
 
         // Statements
         BlockStatement,
@@ -72,5 +75,7 @@
         ParenthesizedExpression,
         AssignmentExpression,
         CallExpression,
+        ArrayInitializerExpression,
+        ElementAccessExpression,
     }
 }

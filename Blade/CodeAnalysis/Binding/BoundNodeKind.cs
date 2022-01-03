@@ -22,6 +22,8 @@
         BinaryExpression,
         ErrorExpression,
         CallExpression,
+        ArrayInitializerExpression,
         ConversionExpression,
+        ElementAccesssExpression,
     }
 }

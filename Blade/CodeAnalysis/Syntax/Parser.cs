@@ -265,7 +265,54 @@ namespace Blade.CodeAnalysis.Syntax
 
         private ExpressionSyntax ParseExpression()
         {
+            return ParseArrayInitializer();
+        }
+
+        private ExpressionSyntax ParseArrayInitializer()
+        {
+            if (Current.Kind == SyntaxKind.OpenBracketToken)
+            {
+                SyntaxToken openBracket = MatchToken(SyntaxKind.OpenBracketToken);
+                SeparatedSyntaxList<ArrayElementSyntax> arrayElements = ParseArrayElements();
+                SyntaxToken close = MatchToken(SyntaxKind.CloseBracketToken);
+                TypeClauseSyntax typeClause = ParseTypeClause();
+                return new ArrayInitializerExpression(openBracket, arrayElements, close, typeClause);
+            }
+
             return ParseAssignmentExpression();
+        }
+
+        private SeparatedSyntaxList<ArrayElementSyntax> ParseArrayElements()
+        {
+            ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
+
+            while (Current.Kind != SyntaxKind.CloseBracketToken &&
+                   Current.Kind != SyntaxKind.EndOfFileToken)
+            {
+                ArrayElementSyntax arrayElement = ParseArrayElement(out bool badExpressionStart);
+                nodesAndSeparators.Add(arrayElement);
+
+                if (Current.Kind != SyntaxKind.CloseBracketToken)
+                {
+                    SyntaxToken comma = MatchToken(SyntaxKind.CommaToken);
+                    nodesAndSeparators.Add(comma);
+                }
+
+                if (badExpressionStart)
+                    NextToken();
+            }
+
+            return new SeparatedSyntaxList<ArrayElementSyntax>(nodesAndSeparators.ToImmutable());
+        }
+
+        private ArrayElementSyntax ParseArrayElement(out bool badExpressionStart)
+        {
+            badExpressionStart = false;
+            if (Current.Kind.ToString().EndsWith("Keyword"))
+                badExpressionStart = true;
+
+            ExpressionSyntax expression = ParseExpression();
+            return new ArrayElementSyntax(expression);
         }
 
         private ExpressionSyntax ParseAssignmentExpression()
@@ -278,6 +325,7 @@ namespace Blade.CodeAnalysis.Syntax
                 ExpressionSyntax right = ParseAssignmentExpression();
                 return new AssignmentExpressionSyntax(identifierToken, operatorToken, right);
             }
+
             return ParseBinaryExpression();
         }
 
@@ -322,7 +370,7 @@ namespace Blade.CodeAnalysis.Syntax
                     return ParseStringLiteral();
                 case SyntaxKind.IdentifierToken:
                 default:
-                    return ParseNameOrCallExpression();
+                    return ParseIdentifierExpression();
             }
         }
 
@@ -353,10 +401,15 @@ namespace Blade.CodeAnalysis.Syntax
             return new LiteralExpressionSyntax(stringToken);
         }
 
-        private ExpressionSyntax ParseNameOrCallExpression()
+        private ExpressionSyntax ParseIdentifierExpression()
         {
-            if (Peek(0).Kind == SyntaxKind.IdentifierToken && Peek(1).Kind == SyntaxKind.OpenParenthesisToken)
+            if (Peek(0).Kind == SyntaxKind.IdentifierToken &&
+                Peek(1).Kind == SyntaxKind.OpenParenthesisToken)
                 return ParseCallExpression();
+            else if (Peek(0).Kind == SyntaxKind.IdentifierToken &&
+                     Peek(1).Kind == SyntaxKind.OpenBracketToken)
+                return ParseElementAccessExpression();
+
             return ParseNameExpression();
         }
 
@@ -384,6 +437,15 @@ namespace Blade.CodeAnalysis.Syntax
                 }
             }
             return new SeparatedSyntaxList<ExpressionSyntax>(nodesAndSeparators.ToImmutable());
+        }
+
+        private ExpressionSyntax ParseElementAccessExpression()
+        {
+            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
+            SyntaxToken openBracket = MatchToken(SyntaxKind.OpenBracketToken);
+            ExpressionSyntax expression = ParseExpression();
+            SyntaxToken closeBracket = MatchToken(SyntaxKind.CloseBracketToken);
+            return new ElementAccessExpression(identifier, openBracket, expression, closeBracket);
         }
 
         private ExpressionSyntax ParseNameExpression()

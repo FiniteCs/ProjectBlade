@@ -8,6 +8,7 @@ namespace Blade.CodeAnalysis
         private readonly BoundProgram _program;
         private readonly Dictionary<VariableSymbol, object> _globals;
         private readonly Stack<Dictionary<VariableSymbol, object>> _locals = new();
+        private readonly Dictionary<ArraySymbol, object[]> _arrays = new();
         private Random _random;
 
         private object _lastValue;
@@ -71,6 +72,7 @@ namespace Blade.CodeAnalysis
             }
             return _lastValue;
         }
+
         private void EvaluateVariableDeclaration(BoundVariableDeclaration node)
         {
             object value = EvaluateExpression(node.Initializer);
@@ -82,6 +84,7 @@ namespace Blade.CodeAnalysis
         {
             _lastValue = EvaluateExpression(node.Expression);
         }
+
         private object EvaluateExpression(BoundExpression node)
         {
             switch (node.Kind)
@@ -98,41 +101,46 @@ namespace Blade.CodeAnalysis
                     return EvaluateBinaryExpression((BoundBinaryExpression)node);
                 case BoundNodeKind.CallExpression:
                     return EvaluateCallExpression((BoundCallExpression)node);
+                case BoundNodeKind.ArrayInitializerExpression:
+                    return EvaluateArrayInitializerExpression((BoundArrayInitializerExpression)node);
+                case BoundNodeKind.ElementAccesssExpression:
+                    return EvaluateElementAccessExpression((BoundElementAccesssExpression)node);
                 case BoundNodeKind.ConversionExpression:
                     return EvaluateConversionExpression((BoundConversionExpression)node);
                 default:
                     throw new Exception($"Unexpected node {node.Kind}");
             }
         }
-        private static object EvaluateLiteralExpression(BoundLiteralExpression n)
+
+        private static object EvaluateLiteralExpression(BoundLiteralExpression node)
         {
-            return n.Value;
+            return node.Value;
         }
 
-        private object EvaluateVariableExpression(BoundVariableExpression v)
+        private object EvaluateVariableExpression(BoundVariableExpression node)
         {
-            if (v.Variable.Kind == SymbolKind.GlobalVariable)
+            if (node.Variable.Kind == SymbolKind.GlobalVariable)
             {
-                return _globals[v.Variable];
+                return _globals[node.Variable];
             }
             else
             {
                 Dictionary<VariableSymbol, object> locals = _locals.Peek();
-                return locals[v.Variable];
+                return locals[node.Variable];
             }
         }
 
-        private object EvaluateAssignmentExpression(BoundAssignmentExpression a)
+        private object EvaluateAssignmentExpression(BoundAssignmentExpression node)
         {
-            object value = EvaluateExpression(a.Expression);
-            Assign(a.Variable, value);
+            object value = EvaluateExpression(node.Expression);
+            Assign(node.Variable, value);
             return value;
         }
 
-        private object EvaluateUnaryExpression(BoundUnaryExpression u)
+        private object EvaluateUnaryExpression(BoundUnaryExpression node)
         {
-            object operand = EvaluateExpression(u.Operand);
-            switch (u.Op.Kind)
+            object operand = EvaluateExpression(node.Operand);
+            switch (node.Op.Kind)
             {
                 case BoundUnaryOperatorKind.Identity:
                     return (int)operand;
@@ -143,17 +151,18 @@ namespace Blade.CodeAnalysis
                 case BoundUnaryOperatorKind.OnesComplement:
                     return ~(int)operand;
                 default:
-                    throw new Exception($"Unexpected unary operator {u.Op}");
+                    throw new Exception($"Unexpected unary operator {node.Op}");
             }
         }
-        private object EvaluateBinaryExpression(BoundBinaryExpression b)
+
+        private object EvaluateBinaryExpression(BoundBinaryExpression node)
         {
-            object left = EvaluateExpression(b.Left);
-            object right = EvaluateExpression(b.Right);
-            switch (b.Op.Kind)
+            object left = EvaluateExpression(node.Left);
+            object right = EvaluateExpression(node.Right);
+            switch (node.Op.Kind)
             {
                 case BoundBinaryOperatorKind.Addition:
-                    if (b.Type == TypeSymbol.Int)
+                    if (node.Type == TypeSymbol.Int)
                         return (int)left + (int)right;
                     else
                         return (string)left + (string)right;
@@ -164,17 +173,17 @@ namespace Blade.CodeAnalysis
                 case BoundBinaryOperatorKind.Division:
                     return (int)left / (int)right;
                 case BoundBinaryOperatorKind.BitwiseAnd:
-                    if (b.Type == TypeSymbol.Int)
+                    if (node.Type == TypeSymbol.Int)
                         return (int)left & (int)right;
                     else
                         return (bool)left & (bool)right;
                 case BoundBinaryOperatorKind.BitwiseOr:
-                    if (b.Type == TypeSymbol.Int)
+                    if (node.Type == TypeSymbol.Int)
                         return (int)left | (int)right;
                     else
                         return (bool)left | (bool)right;
                 case BoundBinaryOperatorKind.BitwiseXor:
-                    if (b.Type == TypeSymbol.Int)
+                    if (node.Type == TypeSymbol.Int)
                         return (int)left ^ (int)right;
                     else
                         return (bool)left ^ (bool)right;
@@ -195,9 +204,10 @@ namespace Blade.CodeAnalysis
                 case BoundBinaryOperatorKind.GreaterOrEquals:
                     return (int)left >= (int)right;
                 default:
-                    throw new Exception($"Unexpected binary operator {b.Op}");
+                    throw new Exception($"Unexpected binary operator {node.Op}");
             }
         }
+
         private object EvaluateCallExpression(BoundCallExpression node)
         {
             if (node.Function == BuiltinFunctions.Input)
@@ -236,6 +246,26 @@ namespace Blade.CodeAnalysis
 
                 return result;
             }
+        }
+
+        private object EvaluateArrayInitializerExpression(BoundArrayInitializerExpression node)
+        {
+            object[] array = new object[node.Expressions.Length];
+            int index = 0;
+            foreach (var item in node.Expressions)
+            {
+                array[index] = EvaluateExpression(item);
+                index++;
+            }
+
+            _arrays.Add(node.ArraySymbol, array);
+            return array;
+        }
+
+        private object EvaluateElementAccessExpression(BoundElementAccesssExpression node)
+        {
+            int index = (int)EvaluateExpression(node.Indexer);
+            return _arrays[node.Array][index];
         }
 
         private object EvaluateConversionExpression(BoundConversionExpression node)

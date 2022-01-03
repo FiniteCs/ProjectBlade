@@ -10,6 +10,7 @@ namespace Blade.CodeAnalysis.Binding
         private readonly DiagnosticBag _diagnostics = new();
         private readonly FunctionSymbol _function;
         private BoundScope _scope;
+        private string _curentVariableName;
 
         public Binder(BoundScope parent, FunctionSymbol function)
         {
@@ -182,6 +183,7 @@ namespace Blade.CodeAnalysis.Binding
 
         private BoundStatement BindVariableDeclaration(VariableDeclarationSyntax syntax)
         {
+            _curentVariableName = syntax.Identifier.Text;
             bool isReadOnly = syntax.Keyword.Kind == SyntaxKind.LetKeyword;
             TypeSymbol type = BindTypeClause(syntax.TypeClause);
             BoundExpression initializer = BindExpression(syntax.Initializer);
@@ -256,6 +258,7 @@ namespace Blade.CodeAnalysis.Binding
                 _diagnostics.ReportExpressionMustHaveValue(syntax.Span);
                 return new BoundErrorExpression();
             }
+
             return result;
         }
 
@@ -277,6 +280,10 @@ namespace Blade.CodeAnalysis.Binding
                     return BindBinaryExpression((BinaryExpressionSyntax)syntax);
                 case SyntaxKind.CallExpression:
                     return BindCallExpression((CallExpressionSyntax)syntax);
+                case SyntaxKind.ArrayInitializerExpression:
+                    return BindArrayInitializerExpression((ArrayInitializerExpression)syntax);
+                case SyntaxKind.ElementAccessExpression:
+                    return BindElementAccessExpression((ElementAccessExpression)syntax);
                 default:
                     throw new Exception($"Unexpected syntax {syntax.Kind}");
             }
@@ -393,6 +400,41 @@ namespace Blade.CodeAnalysis.Binding
             return new BoundCallExpression(function, boundArguments.ToImmutable());
         }
 
+        private BoundExpression BindArrayInitializerExpression(ArrayInitializerExpression syntax)
+        {
+            TypeSymbol type = BindTypeClause(syntax.TypeClauseSyntax);
+            ImmutableArray<BoundExpression> expressions = ImmutableArray.Create<BoundExpression>();
+            foreach (var element in syntax.ArrayElements)
+                expressions = expressions.Add(BindExpression(element.Expression));
+
+            ImmutableArray<ArrayElementSymbol> arrayElements = ImmutableArray.Create<ArrayElementSymbol>();
+            for (int i = 0; i < expressions.Length; i++)
+            {
+                BoundExpression expression = expressions[i];
+                arrayElements = arrayElements.Add(new ArrayElementSymbol($"_element{i}_", expression.Type));
+                if (expression.Type != type)
+                    _diagnostics.ReportCannotConvert(syntax.ArrayElements[i].Span, expression.Type, type);
+            }
+
+            
+            ArraySymbol arraySymbol = new(_curentVariableName, arrayElements, type);
+            _scope.TryDeclareArray(arraySymbol);
+
+            return new BoundArrayInitializerExpression(arraySymbol, expressions);
+        }
+
+        private BoundExpression BindElementAccessExpression(ElementAccessExpression syntax)
+        {
+            if (!_scope.TryLookupArray(syntax.IdentifierToken.Text, out ArraySymbol array))
+                _diagnostics.ReportUndefinedName(syntax.IdentifierToken.Span, syntax.IdentifierToken.Text);
+
+            BoundExpression indexer = BindExpression(syntax.IndexerExpression);
+            if (indexer.Type != TypeSymbol.Int)
+                _diagnostics.ReportCannotConvert(syntax.IndexerExpression.Span, indexer.Type, TypeSymbol.Int);
+
+            return new BoundElementAccesssExpression(array, indexer);
+        }
+
         private BoundExpression BindConversion(ExpressionSyntax syntax, TypeSymbol type, bool allowExplicit = false)
         {
             BoundExpression expression = BindExpression(syntax);
@@ -432,6 +474,7 @@ namespace Blade.CodeAnalysis.Binding
 
             if (declare && !_scope.TryDeclareVariable(variable))
                 _diagnostics.ReportSymbolAlreadyDeclared(identifier.Span, name);
+
             return variable;
         }
 

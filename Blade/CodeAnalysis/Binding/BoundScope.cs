@@ -6,6 +6,7 @@ namespace Blade.CodeAnalysis.Binding
     {
         private Dictionary<string, VariableSymbol> _variables = new();
         private Dictionary<string, FunctionSymbol> _functions = new();
+        private Dictionary<string, ArraySymbol> _arrays = new();
 
         public BoundScope(BoundScope parent)
         {
@@ -13,6 +14,12 @@ namespace Blade.CodeAnalysis.Binding
         }
 
         public BoundScope Parent { get; }
+
+        public Dictionary<string, VariableSymbol> Variables => _variables;
+
+        public Dictionary<string, FunctionSymbol> Functions => _functions;
+
+        public Dictionary<string, ArraySymbol> Arrays => _arrays;
 
         public bool TryDeclareVariable(VariableSymbol variable)
         {
@@ -60,6 +67,30 @@ namespace Blade.CodeAnalysis.Binding
                 return false;
 
             return Parent.TryLookupFunction(name, out function);
+        }
+
+        public bool TryDeclareArray(ArraySymbol array)
+        {
+            if (_arrays == null)
+                _arrays = new();
+
+            if (_arrays.ContainsKey(array.Name))
+                return false;
+
+            _arrays.Add(array.Name, array);
+            return true;
+        }
+
+        public bool TryLookupArray(string name, out ArraySymbol array)
+        {
+            array = null;
+            if (_arrays != null && _arrays.TryGetValue(name, out array))
+                return true;
+
+            if (Parent == null)
+                return false;
+
+            return Parent.TryLookupArray(name, out array);
         }
 
         public ImmutableArray<VariableSymbol> GetDeclaredVariables()

@@ -156,6 +156,10 @@
                     return RewriteBinaryExpression((BoundBinaryExpression)node);
                 case BoundNodeKind.CallExpression:
                     return RewriteCallExpression((BoundCallExpression)node);
+                case BoundNodeKind.ArrayInitializerExpression:
+                    return RewriteArrayInitializerExpression((BoundArrayInitializerExpression)node);
+                case BoundNodeKind.ElementAccesssExpression:
+                    return RewriteElementAccesssExpression((BoundElementAccesssExpression)node);
                 case BoundNodeKind.ConversionExpression:
                     return RewriteConversionExpression((BoundConversionExpression)node);
                 default:
@@ -233,6 +237,27 @@
                 return node;
 
             return new BoundCallExpression(node.Function, builder.MoveToImmutable());
+        }
+
+        protected virtual BoundExpression RewriteArrayInitializerExpression(BoundArrayInitializerExpression node)
+        {
+            ImmutableArray<BoundExpression> expressions = ImmutableArray.Create<BoundExpression>();
+            foreach (var expression in node.Expressions)
+                expressions = expressions.Add(RewriteExpression(expression));
+
+            if (expressions == node.Expressions)
+                return node;
+
+            return new BoundArrayInitializerExpression(node.ArraySymbol, expressions);
+        }
+
+        protected virtual BoundExpression RewriteElementAccesssExpression(BoundElementAccesssExpression node)
+        {
+            BoundExpression indexer = RewriteExpression(node.Indexer);
+            if (indexer == node.Indexer)
+                return node;
+
+            return new BoundElementAccesssExpression(node.Array, indexer);
         }
 
         protected virtual BoundExpression RewriteConversionExpression(BoundConversionExpression node)

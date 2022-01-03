@@ -15,6 +15,7 @@ namespace Blade
         private bool _showProgram;
         private readonly Dictionary<VariableSymbol, object> _variables = new();
 
+
         protected override void RenderLine(string line)
         {
             IEnumerable<SyntaxToken> tokens = SyntaxTree.ParseTokens(line);
@@ -93,9 +94,19 @@ namespace Blade
                 if (result != null)
                 {
                     Console.ForegroundColor = ConsoleColor.White;
+                    if (result.Value is object[] array)
+                    {
+                        foreach (object o in array)
+                            Console.Write($"{o}, ");
+
+                        Console.WriteLine();
+                        goto endOfMethod;
+                    }
+
                     Console.WriteLine(result.Value);
                     Console.ResetColor();
                 }
+
                 _previous = compilation;
             }
             else
@@ -136,6 +147,8 @@ namespace Blade
 
                 Console.WriteLine();
             }
+        endOfMethod:
+            return;
         }
 
         protected override bool IsCompleteSubmission(string text)

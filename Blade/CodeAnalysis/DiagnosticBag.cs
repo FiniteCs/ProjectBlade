@@ -29,27 +29,38 @@ namespace Blade.CodeAnalysis
             string message = $"The number {text} isn't valid {type}.";
             Report(span, message);
         }
+
         public void ReportBadCharacter(int position, char character)
         {
             TextSpan span = new(position, 1);
             string message = $"Bad character input: '{character}'.";
             Report(span, message);
         }
+
         public void ReportUnterminatedString(TextSpan span)
         {
             string message = "Unterminated string literal.";
             Report(span, message);
         }
+
         public void ReportUnexpectedToken(TextSpan span, SyntaxKind actualKind, SyntaxKind expectedKind)
         {
-            string message = $"Unexpected token <{actualKind}>, expected <{expectedKind}>.";
+            string message = $"Unexpected token '{actualKind}', expected '{expectedKind}'.";
             Report(span, message);
         }
+
+        public void ReportInvalidToken(TextSpan span, SyntaxKind kind)
+        {
+            string message = $"Invalid token '{kind}'.";
+            Report(span, message);
+        }
+
         public void ReportUndefinedUnaryOperator(TextSpan span, string operatorText, TypeSymbol operandType)
         {
             string message = $"Unary operator '{operatorText}' is not defined for type '{operandType}'.";
             Report(span, message);
         }
+
         public void ReportUndefinedBinaryOperator(TextSpan span, string operatorText, TypeSymbol leftType, TypeSymbol rightType)
         {
             string message = $"Binary operator '{operatorText}' is not defined for types '{leftType}' and '{rightType}'.";
@@ -91,26 +102,31 @@ namespace Blade.CodeAnalysis
             string message = $"'{name}' is already declared.";
             Report(span, message);
         }
+
         public void ReportCannotAssign(TextSpan span, string name)
         {
             string message = $"Variable '{name}' is read-only and cannot be assigned to.";
             Report(span, message);
         }
+
         public void ReportUndefinedFunction(TextSpan span, string name)
         {
             string message = $"Function '{name}' doesn't exist.";
             Report(span, message);
         }
+
         public void ReportWrongArgumentCount(TextSpan span, string name, int expectedCount, int actualCount)
         {
             string message = $"Function '{name}' requires {expectedCount} arguments but was given {actualCount}.";
             Report(span, message);
         }
+
         public void ReportWrongArgumentType(TextSpan span, string name, TypeSymbol expectedType, TypeSymbol actualType)
         {
             string message = $"Parameter '{name}' requires a value of type '{expectedType}' but was given a value of type '{actualType}'.";
             Report(span, message);
         }
+
         public void ReportExpressionMustHaveValue(TextSpan span)
         {
             string message = "Expression must have a value.";
@@ -120,6 +136,12 @@ namespace Blade.CodeAnalysis
         public void XXX_ReportFunctionsAreUnsupported(TextSpan span)
         {
             string message = "Functions with return values are unsupported.";
+            Report(span, message);
+        }
+
+        public void ReportInvalidArrayElement(TextSpan span)
+        {
+            string message = "Invalid array element.";
             Report(span, message);
         }
     }

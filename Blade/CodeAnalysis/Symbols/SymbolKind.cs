@@ -7,5 +7,7 @@
         LocalVariable,
         Parameter,
         Type,
+        Array,
+        ArrayElement,
     }
 }
