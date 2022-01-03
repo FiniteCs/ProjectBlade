@@ -44,6 +44,7 @@
                     return 0;
             }
         }
+
         public static SyntaxKind GetKeywordKind(string text)
         {
             switch (text)
@@ -94,6 +95,7 @@
                     yield return kind;
             }
         }
+
         public static string GetText(SyntaxKind kind)
         {
             switch (kind)

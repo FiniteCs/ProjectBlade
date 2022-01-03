@@ -30,7 +30,11 @@ namespace Blade
                 bool isIdentifier = token.Kind == SyntaxKind.IdentifierToken;
                 bool isString = token.Kind == SyntaxKind.StringToken;
 
-                if (isKeyword)
+                if (isKeyword ||
+                    token.Text == "int" ||
+                    token.Text == "string" ||
+                    token.Text == "bool" ||
+                    token.Text == "void")
                     Console.ForegroundColor = ConsoleColor.Blue;
                 else if (isNumber)
                     Console.ForegroundColor = ConsoleColor.Cyan;
