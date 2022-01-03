@@ -4,6 +4,7 @@ using Blade.CodeAnalysis.Syntax;
 using Blade.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 
 namespace Blade
@@ -87,7 +88,16 @@ namespace Blade
             if (_showProgram)
                 compilation.EmitTree(Console.Out);
 
-            EvaluationResult result = compilation.Evaluate(_variables);
+            EvaluationResult result;
+            try
+            {
+                result = compilation.Evaluate(_variables);
+            }
+            catch (Exception e)
+            {
+                result = new(ImmutableArray.Create<Diagnostic>(), -1);
+                Console.WriteLine(e.Message);
+            }
 
             if (!result.Diagnostics.Any())
             {
