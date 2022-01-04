@@ -2,7 +2,7 @@
 {
     public sealed class ArraySymbol : Symbol
     {
-        public ArraySymbol(string name, ImmutableArray<ArrayElementSymbol> arrayElements, TypeSymbol type) 
+        public ArraySymbol(string name, ImmutableArray<ArrayElementSymbol> arrayElements, ArrayTypeSymbol type) 
             : base(name)
         {
             ArrayElements = arrayElements;
@@ -11,6 +11,6 @@
 
         public override SymbolKind Kind => SymbolKind.Array;
         public ImmutableArray<ArrayElementSymbol> ArrayElements { get; }
-        public TypeSymbol Type { get; }
+        public ArrayTypeSymbol Type { get; }
     }
 }

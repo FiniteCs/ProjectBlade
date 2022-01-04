@@ -206,8 +206,8 @@ namespace Blade.CodeAnalysis.Syntax
         private TypeClauseSyntax ParseTypeClause()
         {
             SyntaxToken colonToken = MatchToken(SyntaxKind.ColonToken);
-            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
-            return new TypeClauseSyntax(colonToken, identifier);
+            TypeSyntax typeSyntax = ParseTypeSyntax();
+            return new TypeClauseSyntax(colonToken, typeSyntax);
         }
 
         private StatementSyntax ParseIfStatement()
@@ -415,11 +415,11 @@ namespace Blade.CodeAnalysis.Syntax
 
         private ExpressionSyntax ParseCallExpression()
         {
-            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
+            TypeSyntax typeSyntax = ParseTypeSyntax();
             SyntaxToken openParenthesisToken = MatchToken(SyntaxKind.OpenParenthesisToken);
             SeparatedSyntaxList<ExpressionSyntax> arguments = ParseArguments();
             SyntaxToken closeParenthesisToken = MatchToken(SyntaxKind.CloseParenthesisToken);
-            return new CallExpressionSyntax(identifier, openParenthesisToken, arguments, closeParenthesisToken);
+            return new CallExpressionSyntax(typeSyntax, openParenthesisToken, arguments, closeParenthesisToken);
         }
 
         private SeparatedSyntaxList<ExpressionSyntax> ParseArguments()
@@ -452,6 +452,21 @@ namespace Blade.CodeAnalysis.Syntax
         {
             SyntaxToken identifierToken = MatchToken(SyntaxKind.IdentifierToken);
             return new NameExpressionSyntax(identifierToken);
+        }
+
+        private TypeSyntax ParseTypeSyntax()
+        {
+            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
+            SyntaxToken openBracket = null;
+            SyntaxToken closeBracket = null;
+            if (Current.Kind == SyntaxKind.OpenBracketToken &&
+                Peek(1).Kind == SyntaxKind.CloseBracketToken)
+            {
+                openBracket = NextToken();
+                closeBracket = NextToken();
+            }
+
+            return new TypeSyntax(identifier, openBracket, closeBracket);
         }
     }
 }

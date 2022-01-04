@@ -199,9 +199,9 @@ namespace Blade.CodeAnalysis.Binding
             if (syntax == null)
                 return null;
 
-            TypeSymbol type = LookupType(syntax.Identifier.Text);
+            TypeSymbol type = LookupType(syntax.TypeSyntax);
             if (type == null)
-                _diagnostics.ReportUndefinedType(syntax.Identifier.Span, syntax.Identifier.Text);
+                _diagnostics.ReportUndefinedType(syntax.TypeSyntax.TypeIdentifier.Span, syntax.TypeSyntax.TypeIdentifier.Text);
 
             return type;
         }
@@ -365,7 +365,7 @@ namespace Blade.CodeAnalysis.Binding
 
         private BoundExpression BindCallExpression(CallExpressionSyntax syntax)
         {
-            if (syntax.Arguments.Count == 1 && LookupType(syntax.Identifier.Text) is TypeSymbol type)
+            if (syntax.Arguments.Count == 1 && LookupType(syntax.TypeSyntax) is TypeSymbol type)
                 return BindConversion(syntax.Arguments[0], type, allowExplicit: true);
 
             ImmutableArray<BoundExpression>.Builder boundArguments = ImmutableArray.CreateBuilder<BoundExpression>();
@@ -375,9 +375,9 @@ namespace Blade.CodeAnalysis.Binding
                 BoundExpression boundArgument = BindExpression(argument);
                 boundArguments.Add(boundArgument);
             }
-            if (!_scope.TryLookupFunction(syntax.Identifier.Text, out FunctionSymbol function))
+            if (!_scope.TryLookupFunction(syntax.TypeSyntax.TypeIdentifier.Text, out FunctionSymbol function))
             {
-                _diagnostics.ReportUndefinedFunction(syntax.Identifier.Span, syntax.Identifier.Text);
+                _diagnostics.ReportUndefinedFunction(syntax.TypeSyntax.TypeIdentifier.Span, syntax.TypeSyntax.TypeIdentifier.Text);
                 return new BoundErrorExpression();
             }
             if (syntax.Arguments.Count != function.Parameters.Length)
@@ -416,8 +416,8 @@ namespace Blade.CodeAnalysis.Binding
                     _diagnostics.ReportCannotConvert(syntax.ArrayElements[i].Span, expression.Type, type);
             }
 
-            
-            ArraySymbol arraySymbol = new(_curentVariableName, arrayElements, type);
+            ArrayTypeSymbol arrayType = new(type);
+            ArraySymbol arraySymbol = new(_curentVariableName, arrayElements, arrayType);
             _scope.TryDeclareArray(arraySymbol);
 
             return new BoundArrayInitializerExpression(arraySymbol, expressions);
@@ -478,7 +478,7 @@ namespace Blade.CodeAnalysis.Binding
             return variable;
         }
 
-        private static TypeSymbol LookupType(string name)
+        private static TypeSymbol LookupTypeSymbol(string name)
         {
             switch (name)
             {
@@ -491,6 +491,15 @@ namespace Blade.CodeAnalysis.Binding
                 default:
                     return null;
             }
+        }
+
+        private static TypeSymbol LookupType(TypeSyntax typeSyntax)
+        {
+            TypeSymbol type = LookupTypeSymbol(typeSyntax.TypeIdentifier.Text);
+            if (typeSyntax.OpenBracket != null)
+                type = new ArrayTypeSymbol(LookupTypeSymbol(typeSyntax.TypeIdentifier.Text));
+
+            return type;
         }
     }
 }

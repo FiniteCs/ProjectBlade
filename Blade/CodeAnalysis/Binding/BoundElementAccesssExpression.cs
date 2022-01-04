@@ -10,7 +10,7 @@ namespace Blade.CodeAnalysis.Binding
             Indexer = indexer;
         }
 
-        public override TypeSymbol Type => Array.Type;
+        public override TypeSymbol Type => Array.Type.ElementType;
 
         public override BoundNodeKind Kind => BoundNodeKind.ElementAccesssExpression;
 

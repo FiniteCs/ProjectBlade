@@ -77,5 +77,6 @@
         CallExpression,
         ArrayInitializerExpression,
         ElementAccessExpression,
+        TypeSyntax,
     }
 }
