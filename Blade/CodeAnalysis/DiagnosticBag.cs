@@ -144,5 +144,11 @@ namespace Blade.CodeAnalysis
             string message = "Invalid array element.";
             Report(span, message);
         }
+
+        public void ReportInvalidExpressionStatement(TextSpan span)
+        {
+            string message = "Only assignment and call expressions can be used as statements.";
+            Report(span, message);
+        }
     }
 }

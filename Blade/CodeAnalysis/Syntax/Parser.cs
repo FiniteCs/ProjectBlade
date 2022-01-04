@@ -260,6 +260,11 @@ namespace Blade.CodeAnalysis.Syntax
         private ExpressionStatementSyntax ParseExpressionStatement()
         {
             ExpressionSyntax expression = ParseExpression();
+            if (expression is not
+                AssignmentExpressionSyntax or
+                CallExpressionSyntax)
+                _diagnostics.ReportInvalidExpressionStatement(expression.Span);
+
             return new ExpressionStatementSyntax(expression);
         }
 
