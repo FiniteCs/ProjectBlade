@@ -243,7 +243,7 @@
         protected virtual BoundExpression RewriteArrayInitializerExpression(BoundArrayInitializerExpression node)
         {
             ImmutableArray<BoundExpression> expressions = ImmutableArray.Create<BoundExpression>();
-            foreach (var expression in node.Expressions)
+            foreach (BoundExpression expression in node.Expressions)
                 expressions = expressions.Add(RewriteExpression(expression));
 
             if (expressions == node.Expressions)

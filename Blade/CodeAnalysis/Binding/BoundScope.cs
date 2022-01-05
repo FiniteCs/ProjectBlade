@@ -1,5 +1,4 @@
 ﻿using Blade.CodeAnalysis.Symbols;
-using System.Linq;
 
 namespace Blade.CodeAnalysis.Binding
 {

@@ -2,7 +2,7 @@
 {
     public sealed class ArrayElementSymbol : Symbol
     {
-        public ArrayElementSymbol(string name, TypeSymbol type) 
+        public ArrayElementSymbol(string name, TypeSymbol type)
             : base(name)
         {
             Type = type;

@@ -2,7 +2,7 @@
 {
     public abstract class MemberSymbol : Symbol
     {
-        private protected MemberSymbol(string name) 
+        private protected MemberSymbol(string name)
             : base(name)
         {
         }

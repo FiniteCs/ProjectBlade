@@ -4,11 +4,11 @@ namespace Blade.CodeAnalysis.Binding
 {
     internal sealed class BoundGlobalScope
     {
-        public BoundGlobalScope(BoundGlobalScope previous, 
-                                ImmutableArray<Diagnostic> diagnostics, 
-                                ImmutableArray<FunctionSymbol> functions, 
-                                ImmutableArray<VariableSymbol> variables, 
-                                ImmutableArray<ClassSymbol> classes, 
+        public BoundGlobalScope(BoundGlobalScope previous,
+                                ImmutableArray<Diagnostic> diagnostics,
+                                ImmutableArray<FunctionSymbol> functions,
+                                ImmutableArray<VariableSymbol> variables,
+                                ImmutableArray<ClassSymbol> classes,
                                 ImmutableArray<BoundStatement> statements)
         {
             Previous = previous;

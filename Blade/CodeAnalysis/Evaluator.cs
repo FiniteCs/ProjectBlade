@@ -256,7 +256,7 @@ namespace Blade.CodeAnalysis
         {
             object[] array = new object[node.Expressions.Length];
             int index = 0;
-            foreach (var item in node.Expressions)
+            foreach (BoundExpression item in node.Expressions)
             {
                 array[index] = EvaluateExpression(item);
                 index++;
@@ -275,7 +275,7 @@ namespace Blade.CodeAnalysis
         private object EvaluateMemberAccessExpression(BoundMemberAccessExpression node)
         {
             object value = null;
-            foreach (var (classSymbol, classObj) in _program.Classes)
+            foreach ((ClassSymbol classSymbol, Class classObj) in _program.Classes)
             {
                 if (classSymbol == node.Class)
                 {

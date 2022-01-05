@@ -93,8 +93,6 @@ namespace Blade
                 compilation.EmitTree(Console.Out);
 
             EvaluationResult result;
-            result = compilation.Evaluate(_variables);
-#if false
             try
             {
                 result = compilation.Evaluate(_variables);
@@ -104,7 +102,6 @@ namespace Blade
                 result = new(ImmutableArray.Create<Diagnostic>(), -1);
                 Console.WriteLine(e.Message);
             }
-#endif
 
             if (!result.Diagnostics.Any())
             {

@@ -5,7 +5,7 @@ namespace Blade.CodeAnalysis.Symbols
 {
     public sealed class ClassSymbol : MemberSymbol
     {
-        internal ClassSymbol(string name, ImmutableArray<MemberSymbol> members, BoundScope scope, ClassDeclarationSyntax declaration = null) 
+        internal ClassSymbol(string name, ImmutableArray<MemberSymbol> members, BoundScope scope, ClassDeclarationSyntax declaration = null)
             : base(name)
         {
             Members = members;

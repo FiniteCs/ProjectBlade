@@ -2,7 +2,7 @@
 {
     public sealed class TypeSyntax : SyntaxNode
     {
-        public TypeSyntax(SyntaxToken typeIdentifier , SyntaxToken openBracket, SyntaxToken closeBracket)
+        public TypeSyntax(SyntaxToken typeIdentifier, SyntaxToken openBracket, SyntaxToken closeBracket)
         {
             TypeIdentifier = typeIdentifier;
             OpenBracket = openBracket;

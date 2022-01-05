@@ -2,7 +2,7 @@
 {
     public sealed class ArraySymbol : Symbol
     {
-        public ArraySymbol(string name, ImmutableArray<ArrayElementSymbol> arrayElements, ArrayTypeSymbol type) 
+        public ArraySymbol(string name, ImmutableArray<ArrayElementSymbol> arrayElements, ArrayTypeSymbol type)
             : base(name)
         {
             ArrayElements = arrayElements;

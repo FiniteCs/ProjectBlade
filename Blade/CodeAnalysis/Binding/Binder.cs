@@ -27,7 +27,7 @@ namespace Blade.CodeAnalysis.Binding
             {
                 foreach (FunctionSymbol functionSymbol in @class.Members)
                     _scope.TryDeclareFunction(functionSymbol);
-            }    
+            }
         }
 
         public static BoundGlobalScope BindGlobalScope(BoundGlobalScope previous, CompilationUnitSyntax syntax)
@@ -83,7 +83,7 @@ namespace Blade.CodeAnalysis.Binding
 
                 foreach (ClassSymbol @class in scope.Classes)
                 {
-                    ImmutableDictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>>.Builder classFunctionBodies 
+                    ImmutableDictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>>.Builder classFunctionBodies
                         = ImmutableDictionary.CreateBuilder<FunctionSymbol, BoundBlockStatement<BoundStatement>>();
                     Binder binder = new(parentScope, default, @class);
                     foreach (FunctionSymbol function in @class.Members)
@@ -138,7 +138,7 @@ namespace Blade.CodeAnalysis.Binding
         private void BindClassDeclaration(ClassDeclarationSyntax syntax, BoundScope scope)
         {
             BoundScope classScope = new(scope);
-            foreach (var member in syntax.ClassBody.BlockMembers)
+            foreach (MemberSyntax member in syntax.ClassBody.BlockMembers)
                 BindMembers(member, classScope);
 
             ClassSymbol @class = new(syntax.IdentifierToken.Text, classScope.GetMembers(), classScope, syntax);
@@ -454,7 +454,7 @@ namespace Blade.CodeAnalysis.Binding
         {
             TypeSymbol type = BindTypeClause(syntax.TypeClauseSyntax);
             ImmutableArray<BoundExpression> expressions = ImmutableArray.Create<BoundExpression>();
-            foreach (var element in syntax.ArrayElements)
+            foreach (ArrayElementSyntax element in syntax.ArrayElements)
                 expressions = expressions.Add(BindExpression(element.Expression));
 
             ImmutableArray<ArrayElementSymbol> arrayElements = ImmutableArray.Create<ArrayElementSymbol>();
@@ -503,7 +503,7 @@ namespace Blade.CodeAnalysis.Binding
                 scope = scope.Parent;
             }
 
-            EndOfLoop:
+        EndOfLoop:
 
             if (classSymbol == null)
             {
@@ -511,12 +511,12 @@ namespace Blade.CodeAnalysis.Binding
                 return new BoundErrorExpression();
             }
 
-            string memberName = syntax.MemberExpression is CallExpressionSyntax callExpression 
+            string memberName = syntax.MemberExpression is CallExpressionSyntax callExpression
                                                         ? callExpression.TypeSyntax.TypeIdentifier.Text
                                                         : string.Empty;
             BoundExpression boundExpression = BindCallExpression((CallExpressionSyntax)syntax.MemberExpression, classSymbol.Scope);
             MemberSymbol memberSymbol = null;
-            foreach (var member in classSymbol.Members)
+            foreach (MemberSymbol member in classSymbol.Members)
             {
                 if (member.Name == memberName)
                     memberSymbol = member;

@@ -2,7 +2,7 @@
 {
     public sealed class ArrayTypeSymbol : TypeSymbol
     {
-        public ArrayTypeSymbol(TypeSymbol type) 
+        public ArrayTypeSymbol(TypeSymbol type)
             : base($"{type.Name}[]")
         {
             ElementType = type;
