@@ -11,6 +11,7 @@ namespace Blade.CodeAnalysis.Binding
         private readonly FunctionSymbol _function;
         private BoundScope _scope;
         private string _curentVariableName;
+        private static ImmutableArray<ClassSymbol> _classes = ImmutableArray.Create<ClassSymbol>();
 
         public Binder(BoundScope parent, FunctionSymbol function = null, ClassSymbol @class = null)
         {
@@ -66,8 +67,11 @@ namespace Blade.CodeAnalysis.Binding
         {
             BoundScope parentScope = CreateParentScope(globalScope);
 
-            ImmutableDictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>>.Builder functionBodies = ImmutableDictionary.CreateBuilder<FunctionSymbol, BoundBlockStatement<BoundStatement>>();
-            ImmutableDictionary<ClassSymbol, Class>.Builder classes = ImmutableDictionary.CreateBuilder<ClassSymbol, Class>();
+            ImmutableDictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>>.Builder functionBodies 
+                = ImmutableDictionary.CreateBuilder<FunctionSymbol, BoundBlockStatement<BoundStatement>>();
+
+            ImmutableDictionary<ClassSymbol, Class>.Builder classes 
+                = ImmutableDictionary.CreateBuilder<ClassSymbol, Class>();
 
             ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
@@ -182,6 +186,8 @@ namespace Blade.CodeAnalysis.Binding
             ClassSymbol @class = new(syntax.IdentifierToken.Text, classScope.GetMembers(), classScope, syntax);
             if (!scope.TryDeclareClass(@class))
                 _diagnostics.ReportSymbolAlreadyDeclared(syntax.IdentifierToken.Span, syntax.IdentifierToken.Text);
+
+            _classes = _classes.Add(@class);
         }
 
         private void BindMembers(MemberSyntax member, BoundScope scope)
@@ -486,22 +492,9 @@ namespace Blade.CodeAnalysis.Binding
         private BoundExpression BindMemberAccessExpression(MemberAccessExpression syntax)
         {
             ClassSymbol classSymbol = null;
-            BoundScope scope = _scope;
-            while (scope != null)
-            {
-                foreach (ClassSymbol @class in scope.GetDeclaredClasses())
-                {
-                    if (@class.Name == syntax.TypeIdentifier.Text)
-                    {
-                        classSymbol = @class;
-                        goto EndOfLoop;
-                    }
-                }
-
-                scope = scope.Parent;
-            }
-
-        EndOfLoop:
+            foreach (ClassSymbol @class in _classes)
+                if (@class.Name == syntax.TypeIdentifier.Text)
+                    classSymbol = @class;
 
             if (classSymbol == null)
             {
