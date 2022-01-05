@@ -150,5 +150,11 @@ namespace Blade.CodeAnalysis
             string message = "Only assignment and call expressions can be used as statements.";
             Report(span, message);
         }
+
+        public void ReportUndefinedMember(TextSpan span, string name)
+        {
+            string message = $"Member '{name}' doesn't exist.";
+            Report(span, message);
+        }
     }
 }

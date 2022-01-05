@@ -1,13 +1,13 @@
 ﻿namespace Blade.CodeAnalysis.Binding
 {
-    internal sealed class BoundBlockStatement : BoundStatement
+    internal sealed class BoundBlockStatement<T> : BoundStatement
     {
-        public BoundBlockStatement(ImmutableArray<BoundStatement> statements)
+        public BoundBlockStatement(ImmutableArray<T> statements)
         {
             Statements = statements;
         }
 
-        public ImmutableArray<BoundStatement> Statements { get; }
+        public ImmutableArray<T> Statements { get; }
 
         public override BoundNodeKind Kind => BoundNodeKind.BlockStatement;
     }

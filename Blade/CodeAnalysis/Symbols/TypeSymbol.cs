@@ -8,7 +8,7 @@
         public static readonly TypeSymbol String = new("string");
         public static readonly TypeSymbol Void = new("void");
 
-        private protected TypeSymbol(string name)
+        internal protected TypeSymbol(string name)
             : base(name)
         {
         }
@@ -34,10 +34,20 @@
             => base.GetHashCode();
 
         public static bool operator ==(TypeSymbol left, TypeSymbol right)
-            => left.Equals(right);
+        {
+            if (left is null)
+                return false;
+
+            return left.Equals(right);
+        }
 
         public static bool operator !=(TypeSymbol left, TypeSymbol right)
-            => !left.Equals(right);
+        {
+            if (left is null)
+                return false;
+
+            return !left.Equals(right);
+        }
 
         public bool Equals(TypeSymbol type)
         {
@@ -49,16 +59,5 @@
 
             return false;
         }
-    }
-
-    public sealed class ArrayTypeSymbol : TypeSymbol
-    {
-        public ArrayTypeSymbol(TypeSymbol type) 
-            : base($"{type.Name}[]")
-        {
-            ElementType = type;
-        }
-
-        public TypeSymbol ElementType { get; }
     }
 }

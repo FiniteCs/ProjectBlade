@@ -89,6 +89,8 @@ namespace Blade.CodeAnalysis.Syntax
         {
             if (Current.Kind == SyntaxKind.FunctionKeyword)
                 return ParseFunctionDeclaration();
+            else if (Current.Kind == SyntaxKind.ClassKeyword)
+                return ParseClass();
 
             return ParseGlobalStatement();
         }
@@ -101,7 +103,7 @@ namespace Blade.CodeAnalysis.Syntax
             SeparatedSyntaxList<ParameterSyntax> parameters = ParseParameterList();
             SyntaxToken closeParenthesisToken = MatchToken(SyntaxKind.CloseParenthesisToken);
             TypeClauseSyntax type = ParseOptionalTypeClause();
-            BlockStatementSyntax body = ParseBlockStatement();
+            BlockSyntax<StatementSyntax> body = ParseBlockSyntax(ParseStatement);
             return new FunctionDeclarationSyntax(functionKeyword, identifier, openParenthesisToken, parameters, closeParenthesisToken, type, body);
         }
 
@@ -143,7 +145,7 @@ namespace Blade.CodeAnalysis.Syntax
             switch (Current.Kind)
             {
                 case SyntaxKind.OpenBraceToken:
-                    return ParseBlockStatement();
+                    return ParseBlockSyntax(ParseStatement);
                 case SyntaxKind.LetKeyword:
                 case SyntaxKind.VarKeyword:
                     return ParseVariableDeclaration();
@@ -158,30 +160,6 @@ namespace Blade.CodeAnalysis.Syntax
                 default:
                     return ParseExpressionStatement();
             }
-        }
-
-        private BlockStatementSyntax ParseBlockStatement()
-        {
-            ImmutableArray<StatementSyntax>.Builder statements = ImmutableArray.CreateBuilder<StatementSyntax>();
-            SyntaxToken openBraceToken = MatchToken(SyntaxKind.OpenBraceToken);
-            while (Current.Kind != SyntaxKind.EndOfFileToken &&
-                   Current.Kind != SyntaxKind.CloseBraceToken)
-            {
-                SyntaxToken startToken = Current;
-                StatementSyntax statement = ParseStatement();
-                statements.Add(statement);
-                // If ParseStatement() did not consume any tokens,
-                // we need to skip the current token and continue
-                // in order to avoid an infinite loop.
-                //
-                // We don't need to report an error, because we'll
-                // already tried to parse an expression statement
-                // and reported one.
-                if (Current == startToken)
-                    NextToken();
-            }
-            SyntaxToken closeBraceToken = MatchToken(SyntaxKind.CloseBraceToken);
-            return new BlockStatementSyntax(openBraceToken, statements.ToImmutable(), closeBraceToken);
         }
 
         private StatementSyntax ParseVariableDeclaration()
@@ -257,12 +235,47 @@ namespace Blade.CodeAnalysis.Syntax
             return new ForStatementSyntax(keyword, identifier, equalsToken, lowerBound, toKeyword, upperBound, body);
         }
 
+        private MemberSyntax ParseClass()
+        {
+            SyntaxToken classKeyword = MatchToken(SyntaxKind.ClassKeyword);
+            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
+            BlockSyntax<MemberSyntax> classBlock = ParseBlockSyntax(ParseMember);
+            return new ClassDeclarationSyntax(classKeyword, identifier, classBlock);
+        }
+
+        private BlockSyntax<TBlockMember> ParseBlockSyntax<TBlockMember>(Func<TBlockMember> func)
+            where TBlockMember : SyntaxNode
+        {
+            ImmutableArray<TBlockMember>.Builder bodyObjects = ImmutableArray.CreateBuilder<TBlockMember>();
+            SyntaxToken openBraceToken = MatchToken(SyntaxKind.OpenBraceToken);
+            while (Current.Kind != SyntaxKind.EndOfFileToken &&
+                   Current.Kind != SyntaxKind.CloseBraceToken)
+            {
+                SyntaxToken startToken = Current;
+                TBlockMember bodyObject = func.Invoke();
+                bodyObjects.Add(bodyObject);
+
+                // If func.Invoke() did not consume any tokens,
+                // we need to skip the current token and continue
+                // in order to avoid an infinite loop.
+                //
+                // We don't need to report an error, because we'll
+                // already tried to parse an expression statement
+                // and reported one.
+                if (Current == startToken)
+                    NextToken();
+            }
+
+            SyntaxToken closeBraceToken = MatchToken(SyntaxKind.CloseBraceToken);
+            return new BlockSyntax<TBlockMember>(openBraceToken, bodyObjects.ToImmutable(), closeBraceToken);
+        }
+
         private ExpressionStatementSyntax ParseExpressionStatement()
         {
             ExpressionSyntax expression = ParseExpression();
-            if (expression is not
-                AssignmentExpressionSyntax or
-                CallExpressionSyntax)
+            if (expression is not AssignmentExpressionSyntax &&
+                expression is not CallExpressionSyntax &&
+                (expression is MemberAccessExpression m && m.MemberExpression is not CallExpressionSyntax))
                 _diagnostics.ReportInvalidExpressionStatement(expression.Span);
 
             return new ExpressionStatementSyntax(expression);
@@ -357,6 +370,7 @@ namespace Blade.CodeAnalysis.Syntax
                 ExpressionSyntax right = ParseBinaryExpression(precedence);
                 left = new BinaryExpressionSyntax(left, operatorToken, right);
             }
+
             return left;
         }
 
@@ -408,12 +422,15 @@ namespace Blade.CodeAnalysis.Syntax
 
         private ExpressionSyntax ParseIdentifierExpression()
         {
-            if (Peek(0).Kind == SyntaxKind.IdentifierToken &&
-                Peek(1).Kind == SyntaxKind.OpenParenthesisToken)
-                return ParseCallExpression();
-            else if (Peek(0).Kind == SyntaxKind.IdentifierToken &&
-                     Peek(1).Kind == SyntaxKind.OpenBracketToken)
-                return ParseElementAccessExpression();
+            if (Peek(0).Kind == SyntaxKind.IdentifierToken)
+            {
+                if (Peek(1).Kind == SyntaxKind.OpenParenthesisToken)
+                    return ParseCallExpression();
+                else if (Peek(1).Kind == SyntaxKind.OpenBracketToken)
+                    return ParseElementAccessExpression();
+                else if (Peek(1).Kind == SyntaxKind.DotToken)
+                    return ParseMemberAccessExpression();
+            }
 
             return ParseNameExpression();
         }
@@ -451,6 +468,26 @@ namespace Blade.CodeAnalysis.Syntax
             ExpressionSyntax expression = ParseExpression();
             SyntaxToken closeBracket = MatchToken(SyntaxKind.CloseBracketToken);
             return new ElementAccessExpression(identifier, openBracket, expression, closeBracket);
+        }
+
+        private ExpressionSyntax ParseMemberAccessExpression()
+        {
+            SyntaxToken typeIdentifier = MatchToken(SyntaxKind.IdentifierToken);
+            SyntaxToken dotToken = MatchToken(SyntaxKind.DotToken);
+            int pos = _position;
+
+            // Parse the identifier to check for open parenthesis
+            MatchToken(SyntaxKind.IdentifierToken);
+
+            ExpressionSyntax memberExpression = null;
+            if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+            {
+                // reset position
+                _position = pos;
+                memberExpression = ParseCallExpression();
+            }
+
+            return new MemberAccessExpression(typeIdentifier, dotToken, memberExpression);
         }
 
         private ExpressionSyntax ParseNameExpression()

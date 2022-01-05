@@ -7,7 +7,7 @@
             switch (node.Kind)
             {
                 case BoundNodeKind.BlockStatement:
-                    return RewriteBlockStatement((BoundBlockStatement)node);
+                    return RewriteBlockStatement((BoundBlockStatement<BoundStatement>)node, RewriteStatement);
                 case BoundNodeKind.VariableDeclaration:
                     return RewriteVariableDeclaration((BoundVariableDeclaration)node);
                 case BoundNodeKind.IfStatement:
@@ -31,19 +31,18 @@
             }
         }
 
-        protected virtual BoundStatement RewriteBlockStatement(BoundBlockStatement node)
+        protected virtual BoundStatement RewriteBlockStatement<TBlockMember>(BoundBlockStatement<TBlockMember> node, Func<TBlockMember, TBlockMember> func)
         {
-            ImmutableArray<BoundStatement>.Builder builder = null;
+            ImmutableArray<TBlockMember>.Builder builder = null;
             for (int i = 0; i < node.Statements.Length; i++)
             {
-                BoundStatement oldStatement = node.Statements[i];
-                BoundStatement newStatement = RewriteStatement(oldStatement);
-                if (newStatement != oldStatement)
+                TBlockMember oldStatement = node.Statements[i];
+                TBlockMember newStatement = func.Invoke(oldStatement);
+                if (!EqualityComparer<TBlockMember>.Default.Equals(oldStatement, newStatement))
                 {
                     if (builder == null)
                     {
-                        builder = ImmutableArray.CreateBuilder<BoundStatement>(node.Statements.Length);
-
+                        builder = ImmutableArray.CreateBuilder<TBlockMember>(node.Statements.Length);
                         for (int j = 0; j < i; j++)
                             builder.Add(node.Statements[j]);
                     }
@@ -56,7 +55,7 @@
             if (builder == null)
                 return node;
 
-            return new BoundBlockStatement(builder.MoveToImmutable());
+            return new BoundBlockStatement<TBlockMember>(builder.MoveToImmutable());
         }
 
         protected virtual BoundStatement RewriteVariableDeclaration(BoundVariableDeclaration node)
@@ -160,6 +159,8 @@
                     return RewriteArrayInitializerExpression((BoundArrayInitializerExpression)node);
                 case BoundNodeKind.ElementAccesssExpression:
                     return RewriteElementAccesssExpression((BoundElementAccesssExpression)node);
+                case BoundNodeKind.MemberAccessExpression:
+                    return RewriteMemberAccessExpression((BoundMemberAccessExpression)node);
                 case BoundNodeKind.ConversionExpression:
                     return RewriteConversionExpression((BoundConversionExpression)node);
                 default:
@@ -258,6 +259,15 @@
                 return node;
 
             return new BoundElementAccesssExpression(node.Array, indexer);
+        }
+
+        protected virtual BoundExpression RewriteMemberAccessExpression(BoundMemberAccessExpression node)
+        {
+            BoundExpression expression = RewriteExpression(node.Expression);
+            if (expression == node.Expression)
+                return node;
+
+            return new BoundMemberAccessExpression(node.Member, node.Class, expression);
         }
 
         protected virtual BoundExpression RewriteConversionExpression(BoundConversionExpression node)

@@ -34,6 +34,7 @@
         CloseBraceToken,
         ColonToken,
         CommaToken,
+        DotToken,
         IdentifierToken,
 
         // Keywords
@@ -48,6 +49,7 @@
         VarKeyword,
         WhileKeyword,
         DoKeyword,
+        ClassKeyword,
 
         // Nodes
         CompilationUnit,
@@ -57,15 +59,18 @@
         TypeClause,
         ElseClause,
         ArrayElement,
+        TypeSyntax,
+        ClassBody,
 
         // Statements
-        BlockStatement,
+        BlockSyntax,
         VariableDeclaration,
         IfStatement,
         WhileStatement,
         DoWhileStatement,
         ForStatement,
         ExpressionStatement,
+        ClassDeclarationSyntax,
 
         // Expressions
         LiteralExpression,
@@ -77,6 +82,6 @@
         CallExpression,
         ArrayInitializerExpression,
         ElementAccessExpression,
-        TypeSyntax,
+        MemberAccessExpression,
     }
 }

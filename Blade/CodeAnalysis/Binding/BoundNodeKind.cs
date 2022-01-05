@@ -2,6 +2,9 @@
 {
     internal enum BoundNodeKind
     {
+        // Declarations
+        Class,
+
         // Statements
         BlockStatement,
         VariableDeclaration,
@@ -25,5 +28,6 @@
         ArrayInitializerExpression,
         ConversionExpression,
         ElementAccesssExpression,
+        MemberAccessExpression,
     }
 }

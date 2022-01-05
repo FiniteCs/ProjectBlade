@@ -99,6 +99,10 @@ namespace Blade.CodeAnalysis.Syntax
                     _kind = SyntaxKind.HatToken;
                     _position++;
                     break;
+                case '.':
+                    _kind = SyntaxKind.DotToken;
+                    _position++;
+                    break;
                 case '&':
                     _position++;
                     if (Current != '&')

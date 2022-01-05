@@ -1,4 +1,5 @@
 ﻿using Blade.CodeAnalysis.Symbols;
+using System.Linq;
 
 namespace Blade.CodeAnalysis.Binding
 {
@@ -6,7 +7,21 @@ namespace Blade.CodeAnalysis.Binding
     {
         private Dictionary<string, VariableSymbol> _variables = new();
         private Dictionary<string, FunctionSymbol> _functions = new();
+        private Dictionary<string, ClassSymbol> _classes = new();
         private Dictionary<string, ArraySymbol> _arrays = new();
+        private ImmutableArray<MemberSymbol> _members
+        {
+            get
+            {
+                List<MemberSymbol> members = new();
+                members.AddRange(from FunctionSymbol function in _functions.Values
+                                 select function);
+                members.AddRange(from ClassSymbol classSymbol in _classes.Values
+                                 select classSymbol);
+
+                return members.ToImmutableArray();
+            }
+        }
 
         public BoundScope(BoundScope parent)
         {
@@ -14,12 +29,6 @@ namespace Blade.CodeAnalysis.Binding
         }
 
         public BoundScope Parent { get; }
-
-        public Dictionary<string, VariableSymbol> Variables => _variables;
-
-        public Dictionary<string, FunctionSymbol> Functions => _functions;
-
-        public Dictionary<string, ArraySymbol> Arrays => _arrays;
 
         public bool TryDeclareVariable(VariableSymbol variable)
         {
@@ -93,6 +102,30 @@ namespace Blade.CodeAnalysis.Binding
             return Parent.TryLookupArray(name, out array);
         }
 
+        public bool TryDeclareClass(ClassSymbol @class)
+        {
+            if (_classes == null)
+                _classes = new();
+
+            if (_classes.ContainsKey(@class.Name))
+                return false;
+
+            _classes.Add(@class.Name, @class);
+            return true;
+        }
+
+        public bool TryLookupClass(string name, out ClassSymbol @class)
+        {
+            @class = null;
+            if (_classes != null && _classes.TryGetValue(name, out @class))
+                return true;
+
+            if (Parent == null)
+                return false;
+
+            return Parent.TryLookupClass(name, out @class);
+        }
+
         public ImmutableArray<VariableSymbol> GetDeclaredVariables()
         {
             if (_variables == null)
@@ -107,6 +140,22 @@ namespace Blade.CodeAnalysis.Binding
                 return ImmutableArray<FunctionSymbol>.Empty;
 
             return _functions.Values.ToImmutableArray();
+        }
+
+        public ImmutableArray<ClassSymbol> GetDeclaredClasses()
+        {
+            if (_classes == null)
+                return ImmutableArray<ClassSymbol>.Empty;
+
+            return _classes.Values.ToImmutableArray();
+        }
+
+        public ImmutableArray<MemberSymbol> GetMembers()
+        {
+            if (_members == null)
+                return ImmutableArray<MemberSymbol>.Empty;
+
+            return _members;
         }
     }
 }

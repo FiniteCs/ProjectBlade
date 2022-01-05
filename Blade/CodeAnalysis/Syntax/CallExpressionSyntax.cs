@@ -11,7 +11,6 @@
         }
 
         public override SyntaxKind Kind => SyntaxKind.CallExpression;
-
         public TypeSyntax TypeSyntax { get; }
         public SyntaxToken OpenParenthesisToken { get; }
         public SeparatedSyntaxList<ExpressionSyntax> Arguments { get; }

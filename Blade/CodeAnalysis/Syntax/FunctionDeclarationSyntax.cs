@@ -2,7 +2,7 @@
 {
     public sealed class FunctionDeclarationSyntax : MemberSyntax
     {
-        public FunctionDeclarationSyntax(SyntaxToken functionKeyword, SyntaxToken identifier, SyntaxToken openParenthesisToken, SeparatedSyntaxList<ParameterSyntax> parameters, SyntaxToken closeParenthesisToken, TypeClauseSyntax type, BlockStatementSyntax body)
+        public FunctionDeclarationSyntax(SyntaxToken functionKeyword, SyntaxToken identifier, SyntaxToken openParenthesisToken, SeparatedSyntaxList<ParameterSyntax> parameters, SyntaxToken closeParenthesisToken, TypeClauseSyntax type, BlockSyntax<StatementSyntax> body)
         {
             FunctionKeyword = functionKeyword;
             Identifier = identifier;
@@ -21,6 +21,6 @@
         public SeparatedSyntaxList<ParameterSyntax> Parameters { get; }
         public SyntaxToken CloseParenthesisToken { get; }
         public TypeClauseSyntax Type { get; }
-        public BlockStatementSyntax Body { get; }
+        public BlockSyntax<StatementSyntax> Body { get; }
     }
 }

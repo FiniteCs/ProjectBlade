@@ -2,7 +2,7 @@
 
 namespace Blade.CodeAnalysis.Symbols
 {
-    public sealed class FunctionSymbol : Symbol
+    public sealed class FunctionSymbol : MemberSymbol
     {
         public FunctionSymbol(string name, ImmutableArray<ParameterSymbol> parameters, TypeSymbol type, FunctionDeclarationSyntax declaration = null)
             : base(name)
@@ -13,8 +13,8 @@ namespace Blade.CodeAnalysis.Symbols
         }
 
         public override SymbolKind Kind => SymbolKind.Function;
+        public override TypeSymbol Type { get; }
         public FunctionDeclarationSyntax Declaration { get; }
         public ImmutableArray<ParameterSymbol> Parameters { get; }
-        public TypeSymbol Type { get; }
     }
 }

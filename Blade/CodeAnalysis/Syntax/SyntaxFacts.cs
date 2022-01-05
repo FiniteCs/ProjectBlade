@@ -71,6 +71,8 @@
                     return SyntaxKind.WhileKeyword;
                 case "do":
                     return SyntaxKind.DoKeyword;
+                case "class":
+                    return SyntaxKind.ClassKeyword;
                 default:
                     return SyntaxKind.IdentifierToken;
             }

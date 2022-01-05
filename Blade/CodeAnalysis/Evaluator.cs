@@ -25,7 +25,8 @@ namespace Blade.CodeAnalysis
             return EvaluateStatement(_program.Statement);
         }
 
-        private object EvaluateStatement(BoundBlockStatement body)
+        private object EvaluateStatement<TBlockMember>(BoundBlockStatement<TBlockMember> body)
+            where TBlockMember : BoundStatement
         {
             Dictionary<BoundLabel, int> labelToIndex = new();
 
@@ -39,24 +40,24 @@ namespace Blade.CodeAnalysis
 
             while (index < body.Statements.Length)
             {
-                BoundStatement s = body.Statements[index];
+                TBlockMember member = body.Statements[index];
 
-                switch (s.Kind)
+                switch (member.Kind)
                 {
                     case BoundNodeKind.VariableDeclaration:
-                        EvaluateVariableDeclaration((BoundVariableDeclaration)s);
+                        EvaluateVariableDeclaration((BoundVariableDeclaration)(BoundStatement)member);
                         index++;
                         break;
                     case BoundNodeKind.ExpressionStatement:
-                        EvaluateExpressionStatement((BoundExpressionStatement)s);
+                        EvaluateExpressionStatement((BoundExpressionStatement)(BoundStatement)member);
                         index++;
                         break;
                     case BoundNodeKind.GotoStatement:
-                        BoundGotoStatement gs = (BoundGotoStatement)s;
+                        BoundGotoStatement gs = (BoundGotoStatement)(BoundStatement)member;
                         index = labelToIndex[gs.Label];
                         break;
                     case BoundNodeKind.ConditionalGotoStatement:
-                        BoundConditionalGotoStatement cgs = (BoundConditionalGotoStatement)s;
+                        BoundConditionalGotoStatement cgs = (BoundConditionalGotoStatement)(BoundStatement)member;
                         bool condition = (bool)EvaluateExpression(cgs.Condition);
                         if (condition == cgs.JumpIfTrue)
                             index = labelToIndex[cgs.Label];
@@ -67,7 +68,7 @@ namespace Blade.CodeAnalysis
                         index++;
                         break;
                     default:
-                        throw new Exception($"Unexpected node {s.Kind}");
+                        throw new Exception($"Unexpected node {member.Kind}");
                 }
             }
             return _lastValue;
@@ -105,6 +106,8 @@ namespace Blade.CodeAnalysis
                     return EvaluateArrayInitializerExpression((BoundArrayInitializerExpression)node);
                 case BoundNodeKind.ElementAccesssExpression:
                     return EvaluateElementAccessExpression((BoundElementAccesssExpression)node);
+                case BoundNodeKind.MemberAccessExpression:
+                    return EvaluateMemberAccessExpression((BoundMemberAccessExpression)node);
                 case BoundNodeKind.ConversionExpression:
                     return EvaluateConversionExpression((BoundConversionExpression)node);
                 default:
@@ -208,7 +211,7 @@ namespace Blade.CodeAnalysis
             }
         }
 
-        private object EvaluateCallExpression(BoundCallExpression node)
+        private object EvaluateCallExpression(BoundCallExpression node, ImmutableDictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>> functions = null)
         {
             if (node.Function == BuiltinFunctions.Input)
             {
@@ -229,6 +232,7 @@ namespace Blade.CodeAnalysis
             }
             else
             {
+                ImmutableDictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>> _functions = functions ?? _program.Functions;
                 Dictionary<VariableSymbol, object> locals = new();
                 for (int i = 0; i < node.Arguments.Length; i++)
                 {
@@ -239,7 +243,7 @@ namespace Blade.CodeAnalysis
 
                 _locals.Push(locals);
 
-                BoundBlockStatement statement = _program.Functions[node.Function];
+                BoundBlockStatement<BoundStatement> statement = _functions[node.Function];
                 object result = EvaluateStatement(statement);
 
                 _locals.Pop();
@@ -266,6 +270,29 @@ namespace Blade.CodeAnalysis
         {
             int index = (int)EvaluateExpression(node.Indexer);
             return _arrays[node.Array][index];
+        }
+
+        private object EvaluateMemberAccessExpression(BoundMemberAccessExpression node)
+        {
+            object value = null;
+            foreach (var (classSymbol, classObj) in _program.Classes)
+            {
+                if (classSymbol == node.Class)
+                {
+                    foreach (FunctionSymbol function in classSymbol.Members)
+                    {
+                        if (function.Name == node.Member.Name)
+                        {
+                            value = EvaluateCallExpression((BoundCallExpression)node.Expression, classObj.Functions);
+                            break;
+                        }
+                    }
+
+                    break;
+                }
+            }
+
+            return value;
         }
 
         private object EvaluateConversionExpression(BoundConversionExpression node)

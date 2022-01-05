@@ -12,7 +12,7 @@ namespace Blade.CodeAnalysis.Binding
         private BoundScope _scope;
         private string _curentVariableName;
 
-        public Binder(BoundScope parent, FunctionSymbol function)
+        public Binder(BoundScope parent, FunctionSymbol function = null, ClassSymbol @class = null)
         {
             _scope = new BoundScope(parent);
             _function = function;
@@ -22,15 +22,21 @@ namespace Blade.CodeAnalysis.Binding
                 foreach (ParameterSymbol p in function.Parameters)
                     _scope.TryDeclareVariable(p);
             }
+
+            if (@class != null)
+            {
+                foreach (FunctionSymbol functionSymbol in @class.Members)
+                    _scope.TryDeclareFunction(functionSymbol);
+            }    
         }
 
         public static BoundGlobalScope BindGlobalScope(BoundGlobalScope previous, CompilationUnitSyntax syntax)
         {
             BoundScope parentScope = CreateParentScope(previous);
-            Binder binder = new(parentScope, function: null);
+            Binder binder = new(parentScope, default, default);
 
-            foreach (FunctionDeclarationSyntax function in syntax.Members.OfType<FunctionDeclarationSyntax>())
-                binder.BindFunctionDeclaration(function);
+            foreach (MemberSyntax member in syntax.Members)
+                binder.BindMembers(member, binder._scope);
 
             ImmutableArray<BoundStatement>.Builder statements = ImmutableArray.CreateBuilder<BoundStatement>();
 
@@ -42,19 +48,23 @@ namespace Blade.CodeAnalysis.Binding
 
             ImmutableArray<FunctionSymbol> functions = binder._scope.GetDeclaredFunctions();
             ImmutableArray<VariableSymbol> variables = binder._scope.GetDeclaredVariables();
+            ImmutableArray<ClassSymbol> classes = binder._scope.GetDeclaredClasses();
             ImmutableArray<Diagnostic> diagnostics = binder.Diagnostics.ToImmutableArray();
 
             if (previous != null)
                 diagnostics = diagnostics.InsertRange(0, previous.Diagnostics);
 
-            return new BoundGlobalScope(previous, diagnostics, functions, variables, statements.ToImmutable());
+            BoundGlobalScope globalScope = new(previous, diagnostics, functions, variables, classes, statements.ToImmutable());
+            return globalScope;
         }
 
         public static BoundProgram BindProgram(BoundGlobalScope globalScope)
         {
             BoundScope parentScope = CreateParentScope(globalScope);
 
-            ImmutableDictionary<FunctionSymbol, BoundBlockStatement>.Builder functionBodies = ImmutableDictionary.CreateBuilder<FunctionSymbol, BoundBlockStatement>();
+            ImmutableDictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>>.Builder functionBodies = ImmutableDictionary.CreateBuilder<FunctionSymbol, BoundBlockStatement<BoundStatement>>();
+            ImmutableDictionary<ClassSymbol, Class>.Builder classes = ImmutableDictionary.CreateBuilder<ClassSymbol, Class>();
+
             ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
             BoundGlobalScope scope = globalScope;
@@ -65,21 +75,36 @@ namespace Blade.CodeAnalysis.Binding
                 {
                     Binder binder = new(parentScope, function);
                     BoundStatement body = binder.BindStatement(function.Declaration.Body);
-                    BoundBlockStatement loweredBody = Lowerer.Lower(body);
+                    BoundBlockStatement<BoundStatement> loweredBody = Lowerer.Lower(body);
                     functionBodies.Add(function, loweredBody);
 
                     diagnostics.AddRange(binder.Diagnostics);
                 }
 
+                foreach (ClassSymbol @class in scope.Classes)
+                {
+                    ImmutableDictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>>.Builder classFunctionBodies 
+                        = ImmutableDictionary.CreateBuilder<FunctionSymbol, BoundBlockStatement<BoundStatement>>();
+                    Binder binder = new(parentScope, default, @class);
+                    foreach (FunctionSymbol function in @class.Members)
+                    {
+                        binder.BindFunctionDeclaration(function.Declaration, parentScope);
+                        classFunctionBodies.Add(function, binder.BindBlockStatement(function.Declaration.Body, binder.BindStatement));
+                    }
+
+                    diagnostics.AddRange(binder.Diagnostics);
+                    classes.Add(@class, new Class(classFunctionBodies.ToImmutable()));
+                }
+
                 scope = scope.Previous;
             }
 
-            BoundBlockStatement statement = Lowerer.Lower(new BoundBlockStatement(globalScope.Statements));
+            BoundBlockStatement<BoundStatement> statement = Lowerer.Lower<BoundStatement>(new BoundBlockStatement<BoundStatement>(globalScope.Statements));
 
-            return new BoundProgram(diagnostics.ToImmutable(), functionBodies.ToImmutable(), statement);
+            return new BoundProgram(diagnostics.ToImmutable(), functionBodies.ToImmutable(), statement, classes.ToImmutable());
         }
 
-        private void BindFunctionDeclaration(FunctionDeclarationSyntax syntax)
+        private void BindFunctionDeclaration(FunctionDeclarationSyntax syntax, BoundScope scope)
         {
             ImmutableArray<ParameterSymbol>.Builder parameters = ImmutableArray.CreateBuilder<ParameterSymbol>();
 
@@ -106,8 +131,30 @@ namespace Blade.CodeAnalysis.Binding
                 _diagnostics.XXX_ReportFunctionsAreUnsupported(syntax.Type.Span);
 
             FunctionSymbol function = new(syntax.Identifier.Text, parameters.ToImmutable(), type, syntax);
-            if (!_scope.TryDeclareFunction(function))
+            if (!scope.TryDeclareFunction(function))
                 _diagnostics.ReportSymbolAlreadyDeclared(syntax.Identifier.Span, function.Name);
+        }
+
+        private void BindClassDeclaration(ClassDeclarationSyntax syntax, BoundScope scope)
+        {
+            BoundScope classScope = new(scope);
+            foreach (var member in syntax.ClassBody.BlockMembers)
+                BindMembers(member, classScope);
+
+            ClassSymbol @class = new(syntax.IdentifierToken.Text, classScope.GetMembers(), classScope, syntax);
+            if (!scope.TryDeclareClass(@class))
+                _diagnostics.ReportSymbolAlreadyDeclared(syntax.IdentifierToken.Span, syntax.IdentifierToken.Text);
+        }
+
+        private void BindMembers(MemberSyntax member, BoundScope scope)
+        {
+            if (member is FunctionDeclarationSyntax function)
+                BindFunctionDeclaration(function, scope);
+
+            if (member is ClassDeclarationSyntax @class)
+            {
+                BindClassDeclaration(@class, scope);
+            }
         }
 
         private static BoundScope CreateParentScope(BoundGlobalScope previous)
@@ -118,6 +165,7 @@ namespace Blade.CodeAnalysis.Binding
                 stack.Push(previous);
                 previous = previous.Previous;
             }
+
             BoundScope parent = CreateRootScope();
             while (stack.Count > 0)
             {
@@ -149,8 +197,8 @@ namespace Blade.CodeAnalysis.Binding
         {
             switch (syntax.Kind)
             {
-                case SyntaxKind.BlockStatement:
-                    return BindBlockStatement((BlockStatementSyntax)syntax);
+                case SyntaxKind.BlockSyntax:
+                    return BindBlockStatement((BlockSyntax<StatementSyntax>)syntax, BindStatement);
                 case SyntaxKind.VariableDeclaration:
                     return BindVariableDeclaration((VariableDeclarationSyntax)syntax);
                 case SyntaxKind.IfStatement:
@@ -168,17 +216,20 @@ namespace Blade.CodeAnalysis.Binding
             }
         }
 
-        private BoundStatement BindBlockStatement(BlockStatementSyntax syntax)
+        private BoundBlockStatement<TBoundBlockMemberType> BindBlockStatement<TBlockSyntaxType, TBoundBlockMemberType>
+            (BlockSyntax<TBlockSyntaxType> syntax, Func<TBlockSyntaxType, TBoundBlockMemberType> func)
+            where TBlockSyntaxType : SyntaxNode
         {
-            ImmutableArray<BoundStatement>.Builder statements = ImmutableArray.CreateBuilder<BoundStatement>();
+            ImmutableArray<TBoundBlockMemberType>.Builder statements = ImmutableArray.CreateBuilder<TBoundBlockMemberType>();
             _scope = new BoundScope(_scope);
-            foreach (StatementSyntax statementSyntax in syntax.Statements)
+            foreach (TBlockSyntaxType syntaxType in syntax.BlockMembers)
             {
-                BoundStatement statement = BindStatement(statementSyntax);
+                TBoundBlockMemberType statement = func.Invoke(syntaxType);
                 statements.Add(statement);
             }
+
             _scope = _scope.Parent;
-            return new BoundBlockStatement(statements.ToImmutable());
+            return new BoundBlockStatement<TBoundBlockMemberType>(statements.ToImmutable());
         }
 
         private BoundStatement BindVariableDeclaration(VariableDeclarationSyntax syntax)
@@ -241,7 +292,7 @@ namespace Blade.CodeAnalysis.Binding
 
         private BoundStatement BindExpressionStatement(ExpressionStatementSyntax syntax)
         {
-            BoundExpression expression = BindExpression(syntax.Expression, canBeVoid: true);
+            BoundExpression expression = BindExpression(syntax.Expression);
             return new BoundExpressionStatement(expression);
         }
 
@@ -250,15 +301,9 @@ namespace Blade.CodeAnalysis.Binding
             return BindConversion(syntax, targetType);
         }
 
-        private BoundExpression BindExpression(ExpressionSyntax syntax, bool canBeVoid = false)
+        private BoundExpression BindExpression(ExpressionSyntax syntax)
         {
             BoundExpression result = BindExpressionInternal(syntax);
-            if (!canBeVoid && result.Type == TypeSymbol.Void)
-            {
-                _diagnostics.ReportExpressionMustHaveValue(syntax.Span);
-                return new BoundErrorExpression();
-            }
-
             return result;
         }
 
@@ -284,6 +329,8 @@ namespace Blade.CodeAnalysis.Binding
                     return BindArrayInitializerExpression((ArrayInitializerExpression)syntax);
                 case SyntaxKind.ElementAccessExpression:
                     return BindElementAccessExpression((ElementAccessExpression)syntax);
+                case SyntaxKind.MemberAccessExpression:
+                    return BindMemberAccessExpression((MemberAccessExpression)syntax);
                 default:
                     throw new Exception($"Unexpected syntax {syntax.Kind}");
             }
@@ -363,8 +410,11 @@ namespace Blade.CodeAnalysis.Binding
             return new BoundBinaryExpression(boundLeft, boundOperator, boundRight);
         }
 
-        private BoundExpression BindCallExpression(CallExpressionSyntax syntax)
+        private BoundExpression BindCallExpression(CallExpressionSyntax syntax, BoundScope scope = null)
         {
+            if (scope is null)
+                scope = _scope;
+
             if (syntax.Arguments.Count == 1 && LookupType(syntax.TypeSyntax) is TypeSymbol type)
                 return BindConversion(syntax.Arguments[0], type, allowExplicit: true);
 
@@ -375,7 +425,7 @@ namespace Blade.CodeAnalysis.Binding
                 BoundExpression boundArgument = BindExpression(argument);
                 boundArguments.Add(boundArgument);
             }
-            if (!_scope.TryLookupFunction(syntax.TypeSyntax.TypeIdentifier.Text, out FunctionSymbol function))
+            if (!scope.TryLookupFunction(syntax.TypeSyntax.TypeIdentifier.Text, out FunctionSymbol function))
             {
                 _diagnostics.ReportUndefinedFunction(syntax.TypeSyntax.TypeIdentifier.Span, syntax.TypeSyntax.TypeIdentifier.Text);
                 return new BoundErrorExpression();
@@ -433,6 +483,52 @@ namespace Blade.CodeAnalysis.Binding
                 _diagnostics.ReportCannotConvert(syntax.IndexerExpression.Span, indexer.Type, TypeSymbol.Int);
 
             return new BoundElementAccesssExpression(array, indexer);
+        }
+
+        private BoundExpression BindMemberAccessExpression(MemberAccessExpression syntax)
+        {
+            ClassSymbol classSymbol = null;
+            BoundScope scope = _scope;
+            while (scope != null)
+            {
+                foreach (ClassSymbol @class in scope.GetDeclaredClasses())
+                {
+                    if (@class.Name == syntax.TypeIdentifier.Text)
+                    {
+                        classSymbol = @class;
+                        goto EndOfLoop;
+                    }
+                }
+
+                scope = scope.Parent;
+            }
+
+            EndOfLoop:
+
+            if (classSymbol == null)
+            {
+                _diagnostics.ReportUndefinedType(syntax.TypeIdentifier.Span, syntax.TypeIdentifier.Text);
+                return new BoundErrorExpression();
+            }
+
+            string memberName = syntax.MemberExpression is CallExpressionSyntax callExpression 
+                                                        ? callExpression.TypeSyntax.TypeIdentifier.Text
+                                                        : string.Empty;
+            BoundExpression boundExpression = BindCallExpression((CallExpressionSyntax)syntax.MemberExpression, classSymbol.Scope);
+            MemberSymbol memberSymbol = null;
+            foreach (var member in classSymbol.Members)
+            {
+                if (member.Name == memberName)
+                    memberSymbol = member;
+            }
+
+            if (memberSymbol == null)
+            {
+                _diagnostics.ReportUndefinedMember(syntax.MemberExpression.Span, memberName);
+                return new BoundErrorExpression();
+            }
+
+            return new BoundMemberAccessExpression(memberSymbol, classSymbol, boundExpression);
         }
 
         private BoundExpression BindConversion(ExpressionSyntax syntax, TypeSymbol type, bool allowExplicit = false)

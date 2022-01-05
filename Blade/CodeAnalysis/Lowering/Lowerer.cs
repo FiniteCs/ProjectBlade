@@ -7,40 +7,46 @@ namespace Blade.CodeAnalysis.Lowering
     internal sealed class Lowerer : BoundTreeRewriter
     {
         private int _labelCount;
+
         private Lowerer()
         {
         }
+
         private BoundLabel GenerateLabel()
         {
             string name = $"Label{++_labelCount}";
             return new BoundLabel(name);
         }
-        public static BoundBlockStatement Lower(BoundStatement statement)
+
+        public static BoundBlockStatement<TBlockMember> Lower<TBlockMember>(TBlockMember blockMember)
+            where TBlockMember : BoundStatement
         {
             Lowerer lowerer = new();
-            BoundStatement result = lowerer.RewriteStatement(statement);
+            TBlockMember result = (TBlockMember)lowerer.RewriteStatement(blockMember);
             return Flatten(result);
         }
-        private static BoundBlockStatement Flatten(BoundStatement statement)
+
+        private static BoundBlockStatement<TBlockMember> Flatten<TBlockMember>(TBlockMember blockMember)
         {
-            ImmutableArray<BoundStatement>.Builder builder = ImmutableArray.CreateBuilder<BoundStatement>();
-            Stack<BoundStatement> stack = new();
-            stack.Push(statement);
+            ImmutableArray<TBlockMember>.Builder builder = ImmutableArray.CreateBuilder<TBlockMember>();
+            Stack<TBlockMember> stack = new();
+            stack.Push(blockMember);
             while (stack.Count > 0)
             {
-                BoundStatement current = stack.Pop();
-                if (current is BoundBlockStatement block)
+                TBlockMember current = stack.Pop();
+                if (current is BoundBlockStatement<TBlockMember> block)
                 {
-                    foreach (BoundStatement s in block.Statements.Reverse())
-                        stack.Push(s);
+                    foreach (TBlockMember member in block.Statements.Reverse())
+                        stack.Push(member);
                 }
                 else
                 {
                     builder.Add(current);
                 }
             }
-            return new BoundBlockStatement(builder.ToImmutable());
+            return new BoundBlockStatement<TBlockMember>(builder.ToImmutable());
         }
+
         protected override BoundStatement RewriteIfStatement(BoundIfStatement node)
         {
             if (node.ElseStatement == null)
@@ -56,7 +62,7 @@ namespace Blade.CodeAnalysis.Lowering
                 BoundLabel endLabel = GenerateLabel();
                 BoundConditionalGotoStatement gotoFalse = new(endLabel, node.Condition, false);
                 BoundLabelStatement endLabelStatement = new(endLabel);
-                BoundBlockStatement result = new(ImmutableArray.Create(gotoFalse, node.ThenStatement, endLabelStatement));
+                BoundBlockStatement<BoundStatement> result = new(ImmutableArray.Create(gotoFalse, node.ThenStatement, endLabelStatement));
                 return RewriteStatement(result);
             }
             else
@@ -80,7 +86,7 @@ namespace Blade.CodeAnalysis.Lowering
                 BoundGotoStatement gotoEndStatement = new(endLabel);
                 BoundLabelStatement elseLabelStatement = new(elseLabel);
                 BoundLabelStatement endLabelStatement = new(endLabel);
-                BoundBlockStatement result = new(ImmutableArray.Create(
+                BoundBlockStatement<BoundStatement> result = new(ImmutableArray.Create(
                     gotoFalse,
                     node.ThenStatement,
                     gotoEndStatement,
@@ -91,6 +97,7 @@ namespace Blade.CodeAnalysis.Lowering
                 return RewriteStatement(result);
             }
         }
+
         protected override BoundStatement RewriteWhileStatement(BoundWhileStatement node)
         {
             // while <condition>
@@ -110,7 +117,7 @@ namespace Blade.CodeAnalysis.Lowering
             BoundLabelStatement continueLabelStatement = new(continueLabel);
             BoundLabelStatement checkLabelStatement = new(checkLabel);
             BoundConditionalGotoStatement gotoTrue = new(continueLabel, node.Condition);
-            BoundBlockStatement result = new(ImmutableArray.Create<BoundStatement>(
+            BoundBlockStatement<BoundStatement> result = new(ImmutableArray.Create<BoundStatement>(
                 gotoCheck,
                 continueLabelStatement,
                 node.Body,
@@ -119,6 +126,7 @@ namespace Blade.CodeAnalysis.Lowering
             ));
             return RewriteStatement(result);
         }
+
         protected override BoundStatement RewriteDoWhileStatement(BoundDoWhileStatement node)
         {
             // do
@@ -134,13 +142,14 @@ namespace Blade.CodeAnalysis.Lowering
             BoundLabel continueLabel = GenerateLabel();
             BoundLabelStatement continueLabelStatement = new(continueLabel);
             BoundConditionalGotoStatement gotoTrue = new(continueLabel, node.Condition);
-            BoundBlockStatement result = new(ImmutableArray.Create(
+            BoundBlockStatement<BoundStatement> result = new(ImmutableArray.Create(
                 continueLabelStatement,
                 node.Body,
                 gotoTrue
             ));
             return RewriteStatement(result);
         }
+
         protected override BoundStatement RewriteForStatement(BoundForStatement node)
         {
             // for <var> = <lower> to <upper>
@@ -177,9 +186,9 @@ namespace Blade.CodeAnalysis.Lowering
                     )
                 )
             );
-            BoundBlockStatement whileBody = new(ImmutableArray.Create(node.Body, increment));
+            BoundBlockStatement<BoundStatement> whileBody = new(ImmutableArray.Create(node.Body, increment));
             BoundWhileStatement whileStatement = new(condition, whileBody);
-            BoundBlockStatement result = new(ImmutableArray.Create<BoundStatement>(
+            BoundBlockStatement<BoundStatement> result = new(ImmutableArray.Create<BoundStatement>(
                 variableDeclaration,
                 upperBoundDeclaration,
                 whileStatement

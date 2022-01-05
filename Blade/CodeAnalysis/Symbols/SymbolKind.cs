@@ -9,5 +9,6 @@
         Type,
         Array,
         ArrayElement,
+        Class,
     }
 }
