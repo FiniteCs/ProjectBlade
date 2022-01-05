@@ -2,6 +2,8 @@
 {
     internal abstract class BoundTreeRewriter
     {
+        #region Bound Statement Rewriting
+
         public virtual BoundStatement RewriteStatement(BoundStatement node)
         {
             switch (node.Kind)
@@ -136,6 +138,10 @@
 
             return new BoundExpressionStatement(expression);
         }
+
+        #endregion
+
+        #region Bound Expression Rewriting
 
         public virtual BoundExpression RewriteExpression(BoundExpression node)
         {
@@ -278,5 +284,7 @@
 
             return new BoundConversionExpression(node.Type, expression);
         }
+
+        #endregion
     }
 }

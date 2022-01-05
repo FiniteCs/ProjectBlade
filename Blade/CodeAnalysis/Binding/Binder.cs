@@ -30,6 +30,10 @@ namespace Blade.CodeAnalysis.Binding
             }
         }
 
+        public DiagnosticBag Diagnostics => _diagnostics;
+
+        #region Scope Binding
+
         public static BoundGlobalScope BindGlobalScope(BoundGlobalScope previous, CompilationUnitSyntax syntax)
         {
             BoundScope parentScope = CreateParentScope(previous);
@@ -104,6 +108,40 @@ namespace Blade.CodeAnalysis.Binding
             return new BoundProgram(diagnostics.ToImmutable(), functionBodies.ToImmutable(), statement, classes.ToImmutable());
         }
 
+        private static BoundScope CreateParentScope(BoundGlobalScope previous)
+        {
+            Stack<BoundGlobalScope> stack = new();
+            while (previous != null)
+            {
+                stack.Push(previous);
+                previous = previous.Previous;
+            }
+
+            BoundScope parent = CreateRootScope();
+            while (stack.Count > 0)
+            {
+                previous = stack.Pop();
+                BoundScope scope = new(parent);
+
+                foreach (FunctionSymbol f in previous.Functions)
+                    scope.TryDeclareFunction(f);
+
+                foreach (VariableSymbol v in previous.Variables)
+                    scope.TryDeclareVariable(v);
+
+                parent = scope;
+            }
+            return parent;
+        }
+
+        private static BoundScope CreateRootScope()
+        {
+            BoundScope result = new(null);
+            foreach (FunctionSymbol f in BuiltinFunctions.GetAll())
+                result.TryDeclareFunction(f);
+            return result;
+        }
+
         private void BindFunctionDeclaration(FunctionDeclarationSyntax syntax, BoundScope scope)
         {
             ImmutableArray<ParameterSymbol>.Builder parameters = ImmutableArray.CreateBuilder<ParameterSymbol>();
@@ -157,41 +195,9 @@ namespace Blade.CodeAnalysis.Binding
             }
         }
 
-        private static BoundScope CreateParentScope(BoundGlobalScope previous)
-        {
-            Stack<BoundGlobalScope> stack = new();
-            while (previous != null)
-            {
-                stack.Push(previous);
-                previous = previous.Previous;
-            }
+        #endregion
 
-            BoundScope parent = CreateRootScope();
-            while (stack.Count > 0)
-            {
-                previous = stack.Pop();
-                BoundScope scope = new(parent);
-
-                foreach (FunctionSymbol f in previous.Functions)
-                    scope.TryDeclareFunction(f);
-
-                foreach (VariableSymbol v in previous.Variables)
-                    scope.TryDeclareVariable(v);
-
-                parent = scope;
-            }
-            return parent;
-        }
-
-        private static BoundScope CreateRootScope()
-        {
-            BoundScope result = new(null);
-            foreach (FunctionSymbol f in BuiltinFunctions.GetAll())
-                result.TryDeclareFunction(f);
-            return result;
-        }
-
-        public DiagnosticBag Diagnostics => _diagnostics;
+        #region Bound Statement Binding
 
         private BoundStatement BindStatement(StatementSyntax syntax)
         {
@@ -245,18 +251,6 @@ namespace Blade.CodeAnalysis.Binding
             return new BoundVariableDeclaration(variable, convertedInitializer);
         }
 
-        private TypeSymbol BindTypeClause(TypeClauseSyntax syntax)
-        {
-            if (syntax == null)
-                return null;
-
-            TypeSymbol type = LookupType(syntax.TypeSyntax);
-            if (type == null)
-                _diagnostics.ReportUndefinedType(syntax.TypeSyntax.TypeIdentifier.Span, syntax.TypeSyntax.TypeIdentifier.Text);
-
-            return type;
-        }
-
         private BoundStatement BindIfStatement(IfStatementSyntax syntax)
         {
             BoundExpression condition = BindExpression(syntax.Condition, TypeSymbol.Bool);
@@ -296,15 +290,19 @@ namespace Blade.CodeAnalysis.Binding
             return new BoundExpressionStatement(expression);
         }
 
-        private BoundExpression BindExpression(ExpressionSyntax syntax, TypeSymbol targetType)
-        {
-            return BindConversion(syntax, targetType);
-        }
+        #endregion
+
+        #region Bound Expression Binding
 
         private BoundExpression BindExpression(ExpressionSyntax syntax)
         {
             BoundExpression result = BindExpressionInternal(syntax);
             return result;
+        }
+
+        private BoundExpression BindExpression(ExpressionSyntax syntax, TypeSymbol targetType)
+        {
+            return BindConversion(syntax, targetType);
         }
 
         private BoundExpression BindExpressionInternal(ExpressionSyntax syntax)
@@ -341,7 +339,7 @@ namespace Blade.CodeAnalysis.Binding
             return BindExpression(syntax.Expression);
         }
 
-        private static BoundExpression BindLiteralExpression(LiteralExpressionSyntax syntax)
+        private BoundExpression BindLiteralExpression(LiteralExpressionSyntax syntax)
         {
             object value = syntax.Value ?? 0;
             return new BoundLiteralExpression(value);
@@ -560,6 +558,10 @@ namespace Blade.CodeAnalysis.Binding
             return new BoundConversionExpression(type, expression);
         }
 
+        #endregion
+
+        #region Miscellaneous Binding
+
         private VariableSymbol BindVariable(SyntaxToken identifier, bool isReadOnly, TypeSymbol type)
         {
             string name = identifier.Text ?? "?";
@@ -572,6 +574,18 @@ namespace Blade.CodeAnalysis.Binding
                 _diagnostics.ReportSymbolAlreadyDeclared(identifier.Span, name);
 
             return variable;
+        }
+
+        private TypeSymbol BindTypeClause(TypeClauseSyntax syntax)
+        {
+            if (syntax == null)
+                return null;
+
+            TypeSymbol type = LookupType(syntax.TypeSyntax);
+            if (type == null)
+                _diagnostics.ReportUndefinedType(syntax.TypeSyntax.TypeIdentifier.Span, syntax.TypeSyntax.TypeIdentifier.Text);
+
+            return type;
         }
 
         private static TypeSymbol LookupTypeSymbol(string name)
@@ -597,5 +611,7 @@ namespace Blade.CodeAnalysis.Binding
 
             return type;
         }
+
+        #endregion
     }
 }

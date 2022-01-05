@@ -28,6 +28,8 @@ namespace Blade.CodeAnalysis.Syntax
 
         public DiagnosticBag Diagnostics => _diagnostics;
 
+        #region Token Modifiers
+
         private SyntaxToken Peek(int offset)
         {
             int index = _position + offset;
@@ -52,6 +54,10 @@ namespace Blade.CodeAnalysis.Syntax
             _diagnostics.ReportUnexpectedToken(Current.Span, Current.Kind, kind);
             return new SyntaxToken(kind, Current.Position, null, null);
         }
+
+        #endregion
+
+        #region Miscellaneous
 
         public CompilationUnitSyntax ParseCompilationUnit()
         {
@@ -107,6 +113,20 @@ namespace Blade.CodeAnalysis.Syntax
             return new FunctionDeclarationSyntax(functionKeyword, identifier, openParenthesisToken, parameters, closeParenthesisToken, type, body);
         }
 
+        private MemberSyntax ParseGlobalStatement()
+        {
+            StatementSyntax statement = ParseStatement();
+            return new GlobalStatementSyntax(statement);
+        }
+
+        private MemberSyntax ParseClass()
+        {
+            SyntaxToken classKeyword = MatchToken(SyntaxKind.ClassKeyword);
+            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
+            BlockSyntax<MemberSyntax> classBlock = ParseBlockSyntax(ParseMember);
+            return new ClassDeclarationSyntax(classKeyword, identifier, classBlock);
+        }
+
         private SeparatedSyntaxList<ParameterSyntax> ParseParameterList()
         {
             ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
@@ -134,11 +154,79 @@ namespace Blade.CodeAnalysis.Syntax
             return new ParameterSyntax(identifier, type);
         }
 
-        private MemberSyntax ParseGlobalStatement()
+        private TypeClauseSyntax ParseOptionalTypeClause()
         {
-            StatementSyntax statement = ParseStatement();
-            return new GlobalStatementSyntax(statement);
+            if (Current.Kind != SyntaxKind.ColonToken)
+                return null;
+
+            return ParseTypeClause();
         }
+
+        private TypeClauseSyntax ParseTypeClause()
+        {
+            SyntaxToken colonToken = MatchToken(SyntaxKind.ColonToken);
+            TypeSyntax typeSyntax = ParseTypeSyntax();
+            return new TypeClauseSyntax(colonToken, typeSyntax);
+        }
+
+        private SeparatedSyntaxList<ArrayElementSyntax> ParseArrayElements()
+        {
+            ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
+
+            while (Current.Kind != SyntaxKind.CloseBracketToken &&
+                   Current.Kind != SyntaxKind.EndOfFileToken)
+            {
+                ArrayElementSyntax arrayElement = ParseArrayElement(out bool badExpressionStart);
+                nodesAndSeparators.Add(arrayElement);
+
+                if (Current.Kind != SyntaxKind.CloseBracketToken)
+                {
+                    SyntaxToken comma = MatchToken(SyntaxKind.CommaToken);
+                    nodesAndSeparators.Add(comma);
+                }
+
+                if (badExpressionStart)
+                    NextToken();
+            }
+
+            return new SeparatedSyntaxList<ArrayElementSyntax>(nodesAndSeparators.ToImmutable());
+        }
+
+        private SeparatedSyntaxList<ExpressionSyntax> ParseArguments()
+        {
+            ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
+            while (Current.Kind != SyntaxKind.CloseParenthesisToken &&
+                   Current.Kind != SyntaxKind.EndOfFileToken)
+            {
+                ExpressionSyntax expression = ParseExpression();
+                nodesAndSeparators.Add(expression);
+                if (Current.Kind != SyntaxKind.CloseParenthesisToken)
+                {
+                    SyntaxToken comma = MatchToken(SyntaxKind.CommaToken);
+                    nodesAndSeparators.Add(comma);
+                }
+            }
+            return new SeparatedSyntaxList<ExpressionSyntax>(nodesAndSeparators.ToImmutable());
+        }
+
+        private TypeSyntax ParseTypeSyntax()
+        {
+            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
+            SyntaxToken openBracket = null;
+            SyntaxToken closeBracket = null;
+            if (Current.Kind == SyntaxKind.OpenBracketToken &&
+                Peek(1).Kind == SyntaxKind.CloseBracketToken)
+            {
+                openBracket = NextToken();
+                closeBracket = NextToken();
+            }
+
+            return new TypeSyntax(identifier, openBracket, closeBracket);
+        }
+
+        #endregion
+
+        #region Statement Parsing
 
         private StatementSyntax ParseStatement()
         {
@@ -171,21 +259,6 @@ namespace Blade.CodeAnalysis.Syntax
             SyntaxToken equals = MatchToken(SyntaxKind.EqualsToken);
             ExpressionSyntax initializer = ParseExpression();
             return new VariableDeclarationSyntax(keyword, identifier, typeClause, equals, initializer);
-        }
-
-        private TypeClauseSyntax ParseOptionalTypeClause()
-        {
-            if (Current.Kind != SyntaxKind.ColonToken)
-                return null;
-
-            return ParseTypeClause();
-        }
-
-        private TypeClauseSyntax ParseTypeClause()
-        {
-            SyntaxToken colonToken = MatchToken(SyntaxKind.ColonToken);
-            TypeSyntax typeSyntax = ParseTypeSyntax();
-            return new TypeClauseSyntax(colonToken, typeSyntax);
         }
 
         private StatementSyntax ParseIfStatement()
@@ -235,14 +308,6 @@ namespace Blade.CodeAnalysis.Syntax
             return new ForStatementSyntax(keyword, identifier, equalsToken, lowerBound, toKeyword, upperBound, body);
         }
 
-        private MemberSyntax ParseClass()
-        {
-            SyntaxToken classKeyword = MatchToken(SyntaxKind.ClassKeyword);
-            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
-            BlockSyntax<MemberSyntax> classBlock = ParseBlockSyntax(ParseMember);
-            return new ClassDeclarationSyntax(classKeyword, identifier, classBlock);
-        }
-
         private BlockSyntax<TBlockMember> ParseBlockSyntax<TBlockMember>(Func<TBlockMember> func)
             where TBlockMember : SyntaxNode
         {
@@ -281,6 +346,10 @@ namespace Blade.CodeAnalysis.Syntax
             return new ExpressionStatementSyntax(expression);
         }
 
+        #endregion
+
+        #region Expression Parsing
+
         private ExpressionSyntax ParseExpression()
         {
             return ParseArrayInitializer();
@@ -298,29 +367,6 @@ namespace Blade.CodeAnalysis.Syntax
             }
 
             return ParseAssignmentExpression();
-        }
-
-        private SeparatedSyntaxList<ArrayElementSyntax> ParseArrayElements()
-        {
-            ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
-
-            while (Current.Kind != SyntaxKind.CloseBracketToken &&
-                   Current.Kind != SyntaxKind.EndOfFileToken)
-            {
-                ArrayElementSyntax arrayElement = ParseArrayElement(out bool badExpressionStart);
-                nodesAndSeparators.Add(arrayElement);
-
-                if (Current.Kind != SyntaxKind.CloseBracketToken)
-                {
-                    SyntaxToken comma = MatchToken(SyntaxKind.CommaToken);
-                    nodesAndSeparators.Add(comma);
-                }
-
-                if (badExpressionStart)
-                    NextToken();
-            }
-
-            return new SeparatedSyntaxList<ArrayElementSyntax>(nodesAndSeparators.ToImmutable());
         }
 
         private ArrayElementSyntax ParseArrayElement(out bool badExpressionStart)
@@ -444,23 +490,6 @@ namespace Blade.CodeAnalysis.Syntax
             return new CallExpressionSyntax(typeSyntax, openParenthesisToken, arguments, closeParenthesisToken);
         }
 
-        private SeparatedSyntaxList<ExpressionSyntax> ParseArguments()
-        {
-            ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
-            while (Current.Kind != SyntaxKind.CloseParenthesisToken &&
-                   Current.Kind != SyntaxKind.EndOfFileToken)
-            {
-                ExpressionSyntax expression = ParseExpression();
-                nodesAndSeparators.Add(expression);
-                if (Current.Kind != SyntaxKind.CloseParenthesisToken)
-                {
-                    SyntaxToken comma = MatchToken(SyntaxKind.CommaToken);
-                    nodesAndSeparators.Add(comma);
-                }
-            }
-            return new SeparatedSyntaxList<ExpressionSyntax>(nodesAndSeparators.ToImmutable());
-        }
-
         private ExpressionSyntax ParseElementAccessExpression()
         {
             SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
@@ -496,19 +525,6 @@ namespace Blade.CodeAnalysis.Syntax
             return new NameExpressionSyntax(identifierToken);
         }
 
-        private TypeSyntax ParseTypeSyntax()
-        {
-            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
-            SyntaxToken openBracket = null;
-            SyntaxToken closeBracket = null;
-            if (Current.Kind == SyntaxKind.OpenBracketToken &&
-                Peek(1).Kind == SyntaxKind.CloseBracketToken)
-            {
-                openBracket = NextToken();
-                closeBracket = NextToken();
-            }
-
-            return new TypeSyntax(identifier, openBracket, closeBracket);
-        }
+        #endregion
     }
 }
