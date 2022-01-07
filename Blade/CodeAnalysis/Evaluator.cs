@@ -276,7 +276,7 @@ namespace Blade.CodeAnalysis
         {
             static Class GetLastClass(Class classObj, Class c = null)
             {
-                foreach (var (ClassSymbol, Class) in classObj.Classes)
+                foreach ((ClassSymbol ClassSymbol, Class Class) in classObj.Classes)
                 {
                     if (classObj.Classes.Count == 0)
                         c = Class;
@@ -289,7 +289,7 @@ namespace Blade.CodeAnalysis
 
             object value = null;
             Class c = null;
-            foreach (var (ClassSymbol, Class) in _program.Classes)
+            foreach ((ClassSymbol ClassSymbol, Class Class) in _program.Classes)
             {
                 if (ClassSymbol.Name == node.Classes.First().Name)
                 {

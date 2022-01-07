@@ -375,7 +375,7 @@ namespace Blade.CodeAnalysis.Binding
             }
             return new BoundVariableExpression(variable);
         }
-        
+
         private BoundExpression BindAssignmentExpression(AssignmentExpressionSyntax syntax)
         {
             string name = syntax.IdentifierToken.Text;

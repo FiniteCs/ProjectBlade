@@ -6,7 +6,6 @@ using Blade.CodeAnalysis.Syntax;
 using Blade.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 
 namespace Blade
