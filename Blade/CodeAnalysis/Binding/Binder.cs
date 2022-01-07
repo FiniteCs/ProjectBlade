@@ -452,7 +452,7 @@ namespace Blade.CodeAnalysis.Binding
                 BoundExpression argument = boundArguments[i];
                 ParameterSymbol parameter = function.Parameters[i];
 
-                if (argument.Type != parameter.Type)
+                if (argument.Type.Type != parameter.Type)
                 {
                     _diagnostics.ReportWrongArgumentType(syntax.Arguments[i].Span, parameter.Name, parameter.Type, argument.Type);
                     return new BoundErrorExpression();

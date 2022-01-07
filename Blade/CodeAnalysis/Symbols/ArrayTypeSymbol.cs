@@ -8,6 +8,8 @@
             ElementType = type;
         }
 
+        public override TypeSymbol Type => Array;
+
         public TypeSymbol ElementType { get; }
     }
 }

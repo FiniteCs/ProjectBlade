@@ -230,6 +230,16 @@ namespace Blade.CodeAnalysis
                     _random = new Random();
                 return _random.Next(max);
             }
+            else if (node.Function == BuiltinFunctions.Strlen)
+            {
+                string s = (string)EvaluateExpression(node.Arguments[0]);
+                return s.Length;
+            }
+            else if (node.Function == BuiltinFunctions.Len)
+            {
+                Array array = (Array)EvaluateExpression(node.Arguments[0]);
+                return array.Length;
+            }
             else
             {
                 ImmutableDictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>> _functions = functions ?? _program.Functions;

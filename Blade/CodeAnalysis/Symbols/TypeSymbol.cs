@@ -2,11 +2,12 @@
 {
     public class TypeSymbol : Symbol
     {
-        public static readonly TypeSymbol Error = new("?");
-        public static readonly TypeSymbol Int = new("int");
-        public static readonly TypeSymbol Bool = new("bool");
-        public static readonly TypeSymbol String = new("string");
-        public static readonly TypeSymbol Void = new("void");
+        public static readonly TypeSymbol Error = new("?") { Type = Error };
+        public static readonly TypeSymbol Int = new("int") { Type = Int };
+        public static readonly TypeSymbol Bool = new("bool") { Type = Bool };
+        public static readonly TypeSymbol String = new("string") { Type = String };
+        public static readonly TypeSymbol Void = new("void") { Type = Void };
+        public static readonly TypeSymbol Array = new("type_array") { Type = Array };
 
         internal protected TypeSymbol(string name)
             : base(name)
@@ -29,6 +30,8 @@
 
             return false;
         }
+
+        public virtual TypeSymbol Type { get; private set; }
 
         public override int GetHashCode()
             => base.GetHashCode();
