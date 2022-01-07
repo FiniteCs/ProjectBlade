@@ -33,19 +33,19 @@ namespace Blade.CodeAnalysis.Symbols
                 ),
             TypeSymbol.Int
             );
-        public static readonly FunctionSymbol Len = new(
-            "len",
-            ParameterListCreator(
-                new ParameterSymbol("array", TypeSymbol.Array)
-                ),
-            TypeSymbol.Int
-            );
+
+        public static FunctionSymbol Len = new(
+                "len",
+                ParameterListCreator(
+                    new ParameterSymbol("array", TypeSymbol.Array)
+                    ),
+                TypeSymbol.Int
+                );
 
         internal static IEnumerable<FunctionSymbol> GetAll()
             => typeof(BuiltinFunctions).GetFields(BindingFlags.Public | BindingFlags.Static)
                                        .Where(f => f.FieldType == typeof(FunctionSymbol))
                                        .Select(f => (FunctionSymbol)f.GetValue(null));
-
         private static ImmutableArray<ParameterSymbol> ParameterListCreator(params ParameterSymbol[] parameters)
         {
             if (parameters.Length == 0)
