@@ -28,7 +28,7 @@ namespace Blade.CodeAnalysis.Syntax
 
         public DiagnosticBag Diagnostics => _diagnostics;
 
-        #region Token Modifiers
+        #region Token Handling
 
         private SyntaxToken Peek(int offset)
         {
@@ -53,175 +53,6 @@ namespace Blade.CodeAnalysis.Syntax
                 return NextToken();
             _diagnostics.ReportUnexpectedToken(Current.Span, Current.Kind, kind);
             return new SyntaxToken(kind, Current.Position, null, null);
-        }
-
-        #endregion
-
-        #region Miscellaneous
-
-        public CompilationUnitSyntax ParseCompilationUnit()
-        {
-            ImmutableArray<MemberSyntax> members = ParseMembers();
-            SyntaxToken endOfFileToken = MatchToken(SyntaxKind.EndOfFileToken);
-            return new CompilationUnitSyntax(members, endOfFileToken);
-        }
-
-        private ImmutableArray<MemberSyntax> ParseMembers()
-        {
-            ImmutableArray<MemberSyntax>.Builder members = ImmutableArray.CreateBuilder<MemberSyntax>();
-
-            while (Current.Kind != SyntaxKind.EndOfFileToken)
-            {
-                SyntaxToken startToken = Current;
-
-                MemberSyntax member = ParseMember();
-                members.Add(member);
-
-                // If ParseMember() did not consume any tokens,
-                // we need to skip the current token and continue
-                // in order to avoid an infinite loop.
-                //
-                // We don't need to report an error, because we'll
-                // already tried to parse an expression statement
-                // and reported one.
-                if (Current == startToken)
-                    NextToken();
-            }
-
-            return members.ToImmutable();
-        }
-
-        private MemberSyntax ParseMember()
-        {
-            if (Current.Kind == SyntaxKind.FunctionKeyword)
-                return ParseFunctionDeclaration();
-            else if (Current.Kind == SyntaxKind.ClassKeyword)
-                return ParseClass();
-
-            return ParseGlobalStatement();
-        }
-
-        private MemberSyntax ParseFunctionDeclaration()
-        {
-            SyntaxToken functionKeyword = MatchToken(SyntaxKind.FunctionKeyword);
-            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
-            SyntaxToken openParenthesisToken = MatchToken(SyntaxKind.OpenParenthesisToken);
-            SeparatedSyntaxList<ParameterSyntax> parameters = ParseParameterList();
-            SyntaxToken closeParenthesisToken = MatchToken(SyntaxKind.CloseParenthesisToken);
-            TypeClauseSyntax type = ParseOptionalTypeClause();
-            BlockSyntax<StatementSyntax> body = ParseBlockSyntax(ParseStatement);
-            return new FunctionDeclarationSyntax(functionKeyword, identifier, openParenthesisToken, parameters, closeParenthesisToken, type, body);
-        }
-
-        private MemberSyntax ParseGlobalStatement()
-        {
-            StatementSyntax statement = ParseStatement();
-            return new GlobalStatementSyntax(statement);
-        }
-
-        private MemberSyntax ParseClass()
-        {
-            SyntaxToken classKeyword = MatchToken(SyntaxKind.ClassKeyword);
-            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
-            BlockSyntax<MemberSyntax> classBlock = ParseBlockSyntax(ParseMember);
-            return new ClassDeclarationSyntax(classKeyword, identifier, classBlock);
-        }
-
-        private SeparatedSyntaxList<ParameterSyntax> ParseParameterList()
-        {
-            ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
-
-            while (Current.Kind != SyntaxKind.CloseParenthesisToken &&
-                   Current.Kind != SyntaxKind.EndOfFileToken)
-            {
-                ParameterSyntax parameter = ParseParameter();
-                nodesAndSeparators.Add(parameter);
-
-                if (Current.Kind != SyntaxKind.CloseParenthesisToken)
-                {
-                    SyntaxToken comma = MatchToken(SyntaxKind.CommaToken);
-                    nodesAndSeparators.Add(comma);
-                }
-            }
-
-            return new SeparatedSyntaxList<ParameterSyntax>(nodesAndSeparators.ToImmutable());
-        }
-
-        private ParameterSyntax ParseParameter()
-        {
-            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
-            TypeClauseSyntax type = ParseTypeClause();
-            return new ParameterSyntax(identifier, type);
-        }
-
-        private TypeClauseSyntax ParseOptionalTypeClause()
-        {
-            if (Current.Kind != SyntaxKind.ColonToken)
-                return null;
-
-            return ParseTypeClause();
-        }
-
-        private TypeClauseSyntax ParseTypeClause()
-        {
-            SyntaxToken colonToken = MatchToken(SyntaxKind.ColonToken);
-            TypeSyntax typeSyntax = ParseTypeSyntax();
-            return new TypeClauseSyntax(colonToken, typeSyntax);
-        }
-
-        private SeparatedSyntaxList<ArrayElementSyntax> ParseArrayElements()
-        {
-            ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
-
-            while (Current.Kind != SyntaxKind.CloseBracketToken &&
-                   Current.Kind != SyntaxKind.EndOfFileToken)
-            {
-                ArrayElementSyntax arrayElement = ParseArrayElement(out bool badExpressionStart);
-                nodesAndSeparators.Add(arrayElement);
-
-                if (Current.Kind != SyntaxKind.CloseBracketToken)
-                {
-                    SyntaxToken comma = MatchToken(SyntaxKind.CommaToken);
-                    nodesAndSeparators.Add(comma);
-                }
-
-                if (badExpressionStart)
-                    NextToken();
-            }
-
-            return new SeparatedSyntaxList<ArrayElementSyntax>(nodesAndSeparators.ToImmutable());
-        }
-
-        private SeparatedSyntaxList<ExpressionSyntax> ParseArguments()
-        {
-            ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
-            while (Current.Kind != SyntaxKind.CloseParenthesisToken &&
-                   Current.Kind != SyntaxKind.EndOfFileToken)
-            {
-                ExpressionSyntax expression = ParseExpression();
-                nodesAndSeparators.Add(expression);
-                if (Current.Kind != SyntaxKind.CloseParenthesisToken)
-                {
-                    SyntaxToken comma = MatchToken(SyntaxKind.CommaToken);
-                    nodesAndSeparators.Add(comma);
-                }
-            }
-            return new SeparatedSyntaxList<ExpressionSyntax>(nodesAndSeparators.ToImmutable());
-        }
-
-        private TypeSyntax ParseTypeSyntax()
-        {
-            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
-            SyntaxToken openBracket = null;
-            SyntaxToken closeBracket = null;
-            if (Current.Kind == SyntaxKind.OpenBracketToken &&
-                Peek(1).Kind == SyntaxKind.CloseBracketToken)
-            {
-                openBracket = NextToken();
-                closeBracket = NextToken();
-            }
-
-            return new TypeSyntax(identifier, openBracket, closeBracket);
         }
 
         #endregion
@@ -340,7 +171,7 @@ namespace Blade.CodeAnalysis.Syntax
             ExpressionSyntax expression = ParseExpression();
             if (expression is not AssignmentExpressionSyntax &&
                 expression is not CallExpressionSyntax &&
-                (expression is MemberAccessExpression m && m.MemberExpression is not CallExpressionSyntax))
+                (expression is MemberAccessExpression m && m.AdvanceToMembers.Last().MemberExpression is not CallExpressionSyntax))
                 _diagnostics.ReportInvalidExpressionStatement(expression.Span);
 
             return new ExpressionStatementSyntax(expression);
@@ -502,27 +333,213 @@ namespace Blade.CodeAnalysis.Syntax
         private ExpressionSyntax ParseMemberAccessExpression()
         {
             SyntaxToken typeIdentifier = MatchToken(SyntaxKind.IdentifierToken);
-            SyntaxToken dotToken = MatchToken(SyntaxKind.DotToken);
-            int pos = _position;
-
-            // Parse the identifier to check for open parenthesis
-            MatchToken(SyntaxKind.IdentifierToken);
-
-            ExpressionSyntax memberExpression = null;
-            if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+            List<AdvanceToMemberExpression> advanceToMemberExpressions = new();
+            while (true)
             {
-                // reset position
-                _position = pos;
-                memberExpression = ParseCallExpression();
+                AdvanceToMemberExpression advanceToMember = ParseAdvanceToMemberExpression();
+                advanceToMemberExpressions.Add(advanceToMember);
+                if (Current.Kind == SyntaxKind.DotToken) continue;
+                else break;
             }
 
-            return new MemberAccessExpression(typeIdentifier, dotToken, memberExpression);
+            return new MemberAccessExpression(typeIdentifier, advanceToMemberExpressions.ToImmutableArray());
         }
 
         private ExpressionSyntax ParseNameExpression()
         {
             SyntaxToken identifierToken = MatchToken(SyntaxKind.IdentifierToken);
             return new NameExpressionSyntax(identifierToken);
+        }
+
+        private AdvanceToMemberExpression ParseAdvanceToMemberExpression()
+        {
+            SyntaxToken dotToken = MatchToken(SyntaxKind.DotToken);
+            int pos = _position;
+            // Parse the identifier to check for open parenthesis
+            MatchToken(SyntaxKind.IdentifierToken);
+            ExpressionSyntax memberExpression;
+            if (Current.Kind == SyntaxKind.OpenParenthesisToken)
+            {
+                // reset position
+                _position = pos;
+                memberExpression = ParseCallExpression();
+            }
+            else
+            {
+                _position = pos;
+                memberExpression = ParseNameExpression();
+            }
+
+            return new AdvanceToMemberExpression(dotToken, memberExpression);
+        }
+
+        #endregion
+
+        #region Miscellaneous
+
+        public CompilationUnitSyntax ParseCompilationUnit()
+        {
+            ImmutableArray<MemberSyntax> members = ParseMembers();
+            SyntaxToken endOfFileToken = MatchToken(SyntaxKind.EndOfFileToken);
+            return new CompilationUnitSyntax(members, endOfFileToken);
+        }
+
+        private ImmutableArray<MemberSyntax> ParseMembers()
+        {
+            ImmutableArray<MemberSyntax>.Builder members = ImmutableArray.CreateBuilder<MemberSyntax>();
+
+            while (Current.Kind != SyntaxKind.EndOfFileToken)
+            {
+                SyntaxToken startToken = Current;
+
+                MemberSyntax member = ParseMember();
+                members.Add(member);
+
+                // If ParseMember() did not consume any tokens,
+                // we need to skip the current token and continue
+                // in order to avoid an infinite loop.
+                //
+                // We don't need to report an error, because we'll
+                // already tried to parse an expression statement
+                // and reported one.
+                if (Current == startToken)
+                    NextToken();
+            }
+
+            return members.ToImmutable();
+        }
+
+        private MemberSyntax ParseMember()
+        {
+            if (Current.Kind == SyntaxKind.FunctionKeyword)
+                return ParseFunctionDeclaration();
+            else if (Current.Kind == SyntaxKind.ClassKeyword)
+                return ParseClass();
+
+            return ParseGlobalStatement();
+        }
+
+        private MemberSyntax ParseFunctionDeclaration()
+        {
+            SyntaxToken functionKeyword = MatchToken(SyntaxKind.FunctionKeyword);
+            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
+            SyntaxToken openParenthesisToken = MatchToken(SyntaxKind.OpenParenthesisToken);
+            SeparatedSyntaxList<ParameterSyntax> parameters = ParseParameterList();
+            SyntaxToken closeParenthesisToken = MatchToken(SyntaxKind.CloseParenthesisToken);
+            TypeClauseSyntax type = ParseOptionalTypeClause();
+            BlockSyntax<StatementSyntax> body = ParseBlockSyntax(ParseStatement);
+            return new FunctionDeclarationSyntax(functionKeyword, identifier, openParenthesisToken, parameters, closeParenthesisToken, type, body);
+        }
+
+        private MemberSyntax ParseGlobalStatement()
+        {
+            StatementSyntax statement = ParseStatement();
+            return new GlobalStatementSyntax(statement);
+        }
+
+        private MemberSyntax ParseClass()
+        {
+            SyntaxToken classKeyword = MatchToken(SyntaxKind.ClassKeyword);
+            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
+            BlockSyntax<MemberSyntax> classBlock = ParseBlockSyntax(ParseMember);
+            return new ClassDeclarationSyntax(classKeyword, identifier, classBlock);
+        }
+
+        private ParameterSyntax ParseParameter()
+        {
+            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
+            TypeClauseSyntax type = ParseTypeClause();
+            return new ParameterSyntax(identifier, type);
+        }
+
+        private TypeClauseSyntax ParseOptionalTypeClause()
+        {
+            if (Current.Kind != SyntaxKind.ColonToken)
+                return null;
+
+            return ParseTypeClause();
+        }
+
+        private TypeClauseSyntax ParseTypeClause()
+        {
+            SyntaxToken colonToken = MatchToken(SyntaxKind.ColonToken);
+            TypeSyntax typeSyntax = ParseTypeSyntax();
+            return new TypeClauseSyntax(colonToken, typeSyntax);
+        }
+
+        private SeparatedSyntaxList<ParameterSyntax> ParseParameterList()
+        {
+            ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
+
+            while (Current.Kind != SyntaxKind.CloseParenthesisToken &&
+                   Current.Kind != SyntaxKind.EndOfFileToken)
+            {
+                ParameterSyntax parameter = ParseParameter();
+                nodesAndSeparators.Add(parameter);
+
+                if (Current.Kind != SyntaxKind.CloseParenthesisToken)
+                {
+                    SyntaxToken comma = MatchToken(SyntaxKind.CommaToken);
+                    nodesAndSeparators.Add(comma);
+                }
+            }
+
+            return new SeparatedSyntaxList<ParameterSyntax>(nodesAndSeparators.ToImmutable());
+        }
+
+        private SeparatedSyntaxList<ArrayElementSyntax> ParseArrayElements()
+        {
+            ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
+
+            while (Current.Kind != SyntaxKind.CloseBracketToken &&
+                   Current.Kind != SyntaxKind.EndOfFileToken)
+            {
+                ArrayElementSyntax arrayElement = ParseArrayElement(out bool badExpressionStart);
+                nodesAndSeparators.Add(arrayElement);
+
+                if (Current.Kind != SyntaxKind.CloseBracketToken)
+                {
+                    SyntaxToken comma = MatchToken(SyntaxKind.CommaToken);
+                    nodesAndSeparators.Add(comma);
+                }
+
+                if (badExpressionStart)
+                    NextToken();
+            }
+
+            return new SeparatedSyntaxList<ArrayElementSyntax>(nodesAndSeparators.ToImmutable());
+        }
+
+        private SeparatedSyntaxList<ExpressionSyntax> ParseArguments()
+        {
+            ImmutableArray<SyntaxNode>.Builder nodesAndSeparators = ImmutableArray.CreateBuilder<SyntaxNode>();
+            while (Current.Kind != SyntaxKind.CloseParenthesisToken &&
+                   Current.Kind != SyntaxKind.EndOfFileToken)
+            {
+                ExpressionSyntax expression = ParseExpression();
+                nodesAndSeparators.Add(expression);
+                if (Current.Kind != SyntaxKind.CloseParenthesisToken)
+                {
+                    SyntaxToken comma = MatchToken(SyntaxKind.CommaToken);
+                    nodesAndSeparators.Add(comma);
+                }
+            }
+            return new SeparatedSyntaxList<ExpressionSyntax>(nodesAndSeparators.ToImmutable());
+        }
+
+        private TypeSyntax ParseTypeSyntax()
+        {
+            SyntaxToken identifier = MatchToken(SyntaxKind.IdentifierToken);
+            SyntaxToken openBracket = null;
+            SyntaxToken closeBracket = null;
+            if (Current.Kind == SyntaxKind.OpenBracketToken &&
+                Peek(1).Kind == SyntaxKind.CloseBracketToken)
+            {
+                openBracket = NextToken();
+                closeBracket = NextToken();
+            }
+
+            return new TypeSyntax(identifier, openBracket, closeBracket);
         }
 
         #endregion

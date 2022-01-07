@@ -273,7 +273,7 @@
             if (expression == node.Expression)
                 return node;
 
-            return new BoundMemberAccessExpression(node.Member, node.Class, expression);
+            return new BoundMemberAccessExpression(node.Member, node.Classes, expression);
         }
 
         protected virtual BoundExpression RewriteConversionExpression(BoundConversionExpression node)

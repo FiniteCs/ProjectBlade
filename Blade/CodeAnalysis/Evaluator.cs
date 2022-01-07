@@ -274,20 +274,36 @@ namespace Blade.CodeAnalysis
 
         private object EvaluateMemberAccessExpression(BoundMemberAccessExpression node)
         {
-            object value = null;
-            foreach ((ClassSymbol classSymbol, Class classObj) in _program.Classes)
+            static Class GetLastClass(Class classObj, Class c = null)
             {
-                if (classSymbol == node.Class)
+                foreach (var (ClassSymbol, Class) in classObj.Classes)
                 {
-                    foreach (FunctionSymbol function in classSymbol.Members)
-                    {
-                        if (function.Name == node.Member.Name)
-                        {
-                            value = EvaluateCallExpression((BoundCallExpression)node.Expression, classObj.Functions);
-                            break;
-                        }
-                    }
+                    if (classObj.Classes.Count == 0)
+                        c = Class;
+                    else
+                        c = GetLastClass(Class, c);
+                }
 
+                return c ?? classObj;
+            }
+
+            object value = null;
+            Class c = null;
+            foreach (var (ClassSymbol, Class) in _program.Classes)
+            {
+                if (ClassSymbol.Name == node.Classes.First().Name)
+                {
+                    c = Class;
+                    break;
+                }
+            }
+
+            Class last = GetLastClass(c);
+            foreach (FunctionSymbol function in last.Functions.Keys)
+            {
+                if (function.Name == node.Member.Name)
+                {
+                    value = EvaluateCallExpression((BoundCallExpression)node.Expression, last.Functions);
                     break;
                 }
             }

@@ -1,4 +1,6 @@
-﻿using Blade.CodeAnalysis;
+﻿#define DONT_USE_TRY
+
+using Blade.CodeAnalysis;
 using Blade.CodeAnalysis.Symbols;
 using Blade.CodeAnalysis.Syntax;
 using Blade.CodeAnalysis.Text;
@@ -93,6 +95,11 @@ namespace Blade
                 compilation.EmitTree(Console.Out);
 
             EvaluationResult result;
+#if DONT_USE_TRY
+            result = compilation.Evaluate(_variables);
+#endif
+
+#if !DONT_USE_TRY
             try
             {
                 result = compilation.Evaluate(_variables);
@@ -102,6 +109,7 @@ namespace Blade
                 result = new(ImmutableArray.Create<Diagnostic>(), -1);
                 Console.WriteLine(e.Message);
             }
+#endif
 
             if (!result.Diagnostics.Any())
             {

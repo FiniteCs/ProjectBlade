@@ -83,5 +83,6 @@
         ArrayInitializerExpression,
         ElementAccessExpression,
         MemberAccessExpression,
+        AdvanceToMemberExpression,
     }
 }

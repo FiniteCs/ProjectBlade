@@ -26,7 +26,7 @@ namespace Blade.CodeAnalysis.Binding
 
             if (@class != null)
             {
-                foreach (FunctionSymbol functionSymbol in @class.Members)
+                foreach (FunctionSymbol functionSymbol in @class.Members.Where(x => x.Kind == SymbolKind.Function))
                     _scope.TryDeclareFunction(functionSymbol);
             }
         }
@@ -66,17 +66,10 @@ namespace Blade.CodeAnalysis.Binding
         public static BoundProgram BindProgram(BoundGlobalScope globalScope)
         {
             BoundScope parentScope = CreateParentScope(globalScope);
-
-            ImmutableDictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>>.Builder functionBodies 
-                = ImmutableDictionary.CreateBuilder<FunctionSymbol, BoundBlockStatement<BoundStatement>>();
-
-            ImmutableDictionary<ClassSymbol, Class>.Builder classes 
-                = ImmutableDictionary.CreateBuilder<ClassSymbol, Class>();
-
+            Dictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>> functionBodies = new();
+            Dictionary<ClassSymbol, Class> classes = new();
             ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
-
             BoundGlobalScope scope = globalScope;
-
             while (scope != null)
             {
                 foreach (FunctionSymbol function in scope.Functions)
@@ -89,19 +82,10 @@ namespace Blade.CodeAnalysis.Binding
                     diagnostics.AddRange(binder.Diagnostics);
                 }
 
-                foreach (ClassSymbol @class in scope.Classes)
+                foreach (ClassSymbol classSymbol in scope.Classes)
                 {
-                    ImmutableDictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>>.Builder classFunctionBodies
-                        = ImmutableDictionary.CreateBuilder<FunctionSymbol, BoundBlockStatement<BoundStatement>>();
-                    Binder binder = new(parentScope, default, @class);
-                    foreach (FunctionSymbol function in @class.Members)
-                    {
-                        binder.BindFunctionDeclaration(function.Declaration, parentScope);
-                        classFunctionBodies.Add(function, binder.BindBlockStatement(function.Declaration.Body, binder.BindStatement));
-                    }
-
-                    diagnostics.AddRange(binder.Diagnostics);
-                    classes.Add(@class, new Class(classFunctionBodies.ToImmutable()));
+                    (ClassSymbol Symbol, Class Class) cc = GetClass(classSymbol, parentScope);
+                    classes.Add(cc.Symbol, cc.Class);
                 }
 
                 scope = scope.Previous;
@@ -109,7 +93,27 @@ namespace Blade.CodeAnalysis.Binding
 
             BoundBlockStatement<BoundStatement> statement = Lowerer.Lower<BoundStatement>(new BoundBlockStatement<BoundStatement>(globalScope.Statements));
 
-            return new BoundProgram(diagnostics.ToImmutable(), functionBodies.ToImmutable(), statement, classes.ToImmutable());
+            return new BoundProgram(diagnostics.ToImmutable(), functionBodies.ToImmutableDictionary(), statement, classes.ToImmutableDictionary());
+        }
+
+        private static (ClassSymbol Symbol, Class Class) GetClass(ClassSymbol classSymbol, BoundScope parentScope)
+        {
+            Dictionary<FunctionSymbol, BoundBlockStatement<BoundStatement>> functions = new();
+            Dictionary<ClassSymbol, Class> nestedClasses = new();
+            Binder binder = new(parentScope, default, classSymbol);
+            foreach (FunctionSymbol functionSymbol in classSymbol.Members.Where(x => x.Kind == SymbolKind.Function))
+            {
+                BoundBlockStatement<BoundStatement> boundBlockStatement = binder.BindBlockStatement(functionSymbol.Declaration.Body, binder.BindStatement);
+                functions.Add(functionSymbol, boundBlockStatement);
+            }
+
+            foreach (ClassSymbol cs in classSymbol.Members.Where(x => x.Kind == SymbolKind.Class))
+            {
+                (ClassSymbol Symbol, Class Class) cc = GetClass(cs, cs.Scope);
+                nestedClasses.Add(cc.Symbol, cc.Class);
+            }
+
+            return (classSymbol, new Class(functions.ToImmutableDictionary(), nestedClasses.ToImmutableDictionary()));
         }
 
         private static BoundScope CreateParentScope(BoundGlobalScope previous)
@@ -345,11 +349,15 @@ namespace Blade.CodeAnalysis.Binding
             return BindExpression(syntax.Expression);
         }
 
+#pragma warning disable CA1822
+
         private BoundExpression BindLiteralExpression(LiteralExpressionSyntax syntax)
         {
             object value = syntax.Value ?? 0;
             return new BoundLiteralExpression(value);
         }
+
+#pragma warning restore CA1822
 
         private BoundExpression BindNameExpression(NameExpressionSyntax syntax)
         {
@@ -367,7 +375,7 @@ namespace Blade.CodeAnalysis.Binding
             }
             return new BoundVariableExpression(variable);
         }
-
+        
         private BoundExpression BindAssignmentExpression(AssignmentExpressionSyntax syntax)
         {
             string name = syntax.IdentifierToken.Text;
@@ -491,35 +499,125 @@ namespace Blade.CodeAnalysis.Binding
 
         private BoundExpression BindMemberAccessExpression(MemberAccessExpression syntax)
         {
-            ClassSymbol classSymbol = null;
-            foreach (ClassSymbol @class in _classes)
-                if (@class.Name == syntax.TypeIdentifier.Text)
-                    classSymbol = @class;
-
-            if (classSymbol == null)
+            bool TryCastMemberExpression<T>(ExpressionSyntax expression, out T value)
+                where T : ExpressionSyntax
             {
-                _diagnostics.ReportUndefinedType(syntax.TypeIdentifier.Span, syntax.TypeIdentifier.Text);
-                return new BoundErrorExpression();
+                if (expression.GetType() == typeof(T))
+                {
+                    value = (T)expression;
+                    return true;
+                }
+                else
+                {
+                    value = null;
+                    return false;
+                }
             }
 
-            string memberName = syntax.MemberExpression is CallExpressionSyntax callExpression
-                                                        ? callExpression.TypeSyntax.TypeIdentifier.Text
-                                                        : string.Empty;
-            BoundExpression boundExpression = BindCallExpression((CallExpressionSyntax)syntax.MemberExpression, classSymbol.Scope);
+            Stack<ClassSymbol> GetClasses(ImmutableArray<AdvanceToMemberExpression> advances)
+            {
+                Stack<ClassSymbol> classStack = new();
+                ClassSymbol previousClass = null;
+                foreach (AdvanceToMemberExpression advance in advances)
+                {
+                    if (advance.MemberExpression is NameExpressionSyntax nes)
+                    {
+                        switch (previousClass)
+                        {
+                            case null:
+                            {
+                                foreach (ClassSymbol c in from ClassSymbol c in _classes
+                                                          where c.Name == nes.IdentifierToken.Text
+                                                          select c)
+                                {
+                                    if (c is null)
+                                        _diagnostics.ReportUndefinedType(nes.IdentifierToken.Span, nes.IdentifierToken.Text);
+                                    previousClass = c;
+                                    classStack.Push(c);
+                                    continue;
+                                }
+
+                                break;
+                            }
+                            default:
+                            {
+                                foreach (ClassSymbol member in from ClassSymbol member in previousClass.Members
+                                                               where member.Name == nes.IdentifierToken.Text
+                                                               select member)
+                                {
+                                    if (member is null)
+                                        _diagnostics.ReportUndefinedMember(nes.IdentifierToken.Span, nes.IdentifierToken.Text);
+                                    previousClass = member;
+                                    classStack.Push(member);
+                                    continue;
+                                }
+
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        foreach (ClassSymbol @class in _classes)
+                        {
+                            if (@class.Name == syntax.TypeIdentifier.Text)
+                            {
+                                classStack.Push(@class);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                return classStack;
+            }
+
+            Stack<ClassSymbol> classes = GetClasses(syntax.AdvanceToMembers);
             MemberSymbol memberSymbol = null;
-            foreach (MemberSymbol member in classSymbol.Members)
+            BoundExpression boundExpression = null;
+            ClassSymbol classSymbol = null;
+            foreach (ClassSymbol c in classes)
             {
-                if (member.Name == memberName)
-                    memberSymbol = member;
+                if (c.Name == classes.Last().Name)
+                {
+                    foreach (MemberSymbol member in c.Members)
+                    {
+                        if (TryCastMemberExpression(syntax.AdvanceToMembers.Last(),
+                                                    out CallExpressionSyntax ces) &&
+                            member.Name == ces.TypeSyntax.TypeIdentifier.Text)
+                        {
+                            memberSymbol = member;
+                            classSymbol = c;
+                            break;
+                        }
+                    }
+                }
             }
 
-            if (memberSymbol == null)
+            if (memberSymbol is null)
             {
-                _diagnostics.ReportUndefinedMember(syntax.MemberExpression.Span, memberName);
+                TextSpan span = new();
+                string text = "null";
+                if (TryCastMemberExpression(syntax.AdvanceToMembers.Last().MemberExpression,
+                                            out CallExpressionSyntax ces))
+                {
+                    span = ces.Span;
+                    text = ces.TypeSyntax.TypeIdentifier.Text;
+                }
+                else if (TryCastMemberExpression(syntax.AdvanceToMembers.Last().MemberExpression,
+                                                 out NameExpressionSyntax nes))
+                {
+                    span = nes.Span;
+                    text = nes.IdentifierToken.Text;
+                }
+
+                _diagnostics.ReportUndefinedMember(span, text);
+
                 return new BoundErrorExpression();
             }
 
-            return new BoundMemberAccessExpression(memberSymbol, classSymbol, boundExpression);
+            boundExpression = BindCallExpression((CallExpressionSyntax)syntax.AdvanceToMembers.Last().MemberExpression, classSymbol.Scope);
+            return new BoundMemberAccessExpression(memberSymbol, classes, boundExpression);
         }
 
         private BoundExpression BindConversion(ExpressionSyntax syntax, TypeSymbol type, bool allowExplicit = false)

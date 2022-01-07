@@ -2,16 +2,14 @@
 {
     public sealed class MemberAccessExpression : ExpressionSyntax
     {
-        public MemberAccessExpression(SyntaxToken typeIdentifier, SyntaxToken dotToken, ExpressionSyntax memberExpression)
+        public MemberAccessExpression(SyntaxToken typeIdentifier, ImmutableArray<AdvanceToMemberExpression> advanceToMembers)
         {
             TypeIdentifier = typeIdentifier;
-            DotToken = dotToken;
-            MemberExpression = memberExpression;
+            AdvanceToMembers = advanceToMembers;
         }
 
         public override SyntaxKind Kind => SyntaxKind.MemberAccessExpression;
         public SyntaxToken TypeIdentifier { get; }
-        public SyntaxToken DotToken { get; }
-        public ExpressionSyntax MemberExpression { get; }
+        public ImmutableArray<AdvanceToMemberExpression> AdvanceToMembers { get; }
     }
 }
